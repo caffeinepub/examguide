@@ -33,6 +33,7 @@ import type { Principal } from "@icp-sdk/core/principal";
 import {
   BookOpen,
   Clock,
+  CreditCard,
   DollarSign,
   Filter,
   GraduationCap,
@@ -50,6 +51,7 @@ import { toast } from "sonner";
 import type { Review, TutorMentorProfile } from "../backend.d";
 import { SAMPLE_EXAM_CATEGORIES } from "../data/sampleData";
 import { formatTimestamp } from "../data/sampleData";
+import { useCreateCheckoutSession } from "../hooks/useCheckout";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useCreateBookingRequest,
@@ -60,97 +62,15 @@ import {
   useTutorProfiles,
 } from "../hooks/useQueries";
 
-const SAMPLE_TUTORS: TutorMentorProfile[] = [
-  {
-    id: 1,
-    name: "Dr. Aisha Patel",
-    bio: "Former SAT examiner with 12 years of teaching experience. I've helped 300+ students achieve 1500+ scores. Specializes in Math and Evidence-Based Reading. My structured approach identifies your exact weak spots and eliminates them systematically.",
-    subjects: ["Mathematics", "Reading", "Writing"],
-    exams: new Uint32Array([1, 12]),
-    availability: "Weekdays 6pm-10pm EST, Weekends anytime",
-    hourlyRate: 85,
-    isMentor: false,
-    user: {
-      toString: () => "tutor-1",
-      isAnonymous: () => false,
-    } as unknown as Principal,
-  },
-  {
-    id: 2,
-    name: "Marcus Chen",
-    bio: "GRE 340 scorer and PhD candidate at MIT. I specialize in Quantitative Reasoning and Analytical Writing. My students average a 15-point improvement in 6 weeks. Let's break down the GRE together — it's more pattern-based than most think.",
-    subjects: ["Quantitative Reasoning", "Verbal", "Analytical Writing"],
-    exams: new Uint32Array([2, 3]),
-    availability: "Tue, Thu evenings EST; Sat mornings",
-    hourlyRate: 95,
-    isMentor: true,
-    user: {
-      toString: () => "tutor-2",
-      isAnonymous: () => false,
-    } as unknown as Principal,
-  },
-  {
-    id: 3,
-    name: "Priya Sharma",
-    bio: "IELTS and TOEFL specialist with 8 years of experience teaching English for academic purposes. Native-level fluency trainer. Band 9 in IELTS Speaking. My immersive approach helped students from 40+ countries reach Band 7.5+.",
-    subjects: ["Speaking", "Writing", "Listening", "Reading"],
-    exams: new Uint32Array([4, 5]),
-    availability: "Daily 7am-9am and 7pm-9pm IST",
-    hourlyRate: 60,
-    isMentor: false,
-    user: {
-      toString: () => "tutor-3",
-      isAnonymous: () => false,
-    } as unknown as Principal,
-  },
-  {
-    id: 4,
-    name: "Arjun Kapoor",
-    bio: "IIT Bombay graduate and JEE AIR 47 holder. Coaching JEE aspirants for 7 years. Specializes in Physics and Mathematics. I believe every concept has a beautiful logic behind it — once you see it, problems become intuitive.",
-    subjects: ["Physics", "Mathematics", "Chemistry"],
-    exams: new Uint32Array([6]),
-    availability: "Mon-Sat 8am-10am IST and 6pm-9pm IST",
-    hourlyRate: 70,
-    isMentor: true,
-    user: {
-      toString: () => "tutor-4",
-      isAnonymous: () => false,
-    } as unknown as Principal,
-  },
-  {
-    id: 5,
-    name: "Sarah Okonkwo",
-    bio: "IAS Officer turned UPSC mentor. Secured AIR 23 in Civil Services 2019. I guide aspirants through the entire UPSC journey — from subject selection to interview preparation. My students have cracked Prelims, Mains, and the Personality Test.",
-    subjects: [
-      "General Studies",
-      "Essay",
-      "Optional Subject",
-      "Current Affairs",
-    ],
-    exams: new Uint32Array([7]),
-    availability: "Weekends 10am-2pm IST; Online only",
-    hourlyRate: 120,
-    isMentor: true,
-    user: {
-      toString: () => "tutor-5",
-      isAnonymous: () => false,
-    } as unknown as Principal,
-  },
-  {
-    id: 6,
-    name: "James Liu",
-    bio: "GMAT 780 scorer and Harvard MBA graduate. I coach GMAT and LSAT students with a focus on data-driven improvement. Quant and Verbal specialist. My students typically see 60-80 point improvements in 8 weeks.",
-    subjects: ["Quantitative", "Verbal", "Integrated Reasoning"],
-    exams: new Uint32Array([3, 8]),
-    availability: "Flexible schedule; Time zones: EST/PST/GMT",
-    hourlyRate: 110,
-    isMentor: false,
-    user: {
-      toString: () => "tutor-6",
-      isAnonymous: () => false,
-    } as unknown as Principal,
-  },
-];
+// Session types with multipliers on hourlyRate
+const SESSION_TYPES = [
+  { value: "1hr", label: "1-Hour Session", multiplier: 1 },
+  { value: "2hr", label: "2-Hour Session", multiplier: 2 },
+  { value: "plan", label: "Study Plan Review", multiplier: 1.5 },
+  { value: "mock", label: "Mock Exam + Feedback", multiplier: 2.5 },
+] as const;
+
+type SessionTypeValue = (typeof SESSION_TYPES)[number]["value"];
 
 function StarRating({
   rating,
@@ -235,6 +155,7 @@ export default function TutorsPage() {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [bookingMessage, setBookingMessage] = useState("");
+  const [sessionType, setSessionType] = useState<SessionTypeValue>("1hr");
   const [reviewText, setReviewText] = useState("");
   const [reviewRating, setReviewRating] = useState(5);
 
@@ -253,17 +174,25 @@ export default function TutorsPage() {
   const createTutor = useCreateTutorProfile();
   const createBooking = useCreateBookingRequest();
   const createReview = useCreateReview();
+  const createCheckout = useCreateCheckoutSession();
+
+  // Calculate price based on session type and tutor's hourly rate
+  const selectedSession = SESSION_TYPES.find((s) => s.value === sessionType)!;
+  const hasHourlyRate =
+    selectedTutor?.hourlyRate != null && selectedTutor.hourlyRate > 0;
+  const sessionPriceDollars = hasHourlyRate
+    ? Math.round(
+        selectedTutor!.hourlyRate! * selectedSession.multiplier * 100,
+      ) / 100
+    : 0;
+  const sessionPriceCents = Math.round(sessionPriceDollars * 100);
 
   const categories =
     backendCategories && backendCategories.length > 0
       ? backendCategories
       : SAMPLE_EXAM_CATEGORIES;
 
-  const allProfiles = useMemo(() => {
-    return backendProfiles && backendProfiles.length > 0
-      ? backendProfiles
-      : SAMPLE_TUTORS;
-  }, [backendProfiles]);
+  const allProfiles = backendProfiles ?? [];
 
   const filteredProfiles = useMemo(() => {
     return allProfiles.filter((p) => {
@@ -295,10 +224,34 @@ export default function TutorsPage() {
   };
 
   const handleBook = async () => {
+    if (!isLoggedIn) {
+      toast.error("Please log in to send a request");
+      return;
+    }
     if (!selectedTutor || !bookingMessage.trim()) {
       toast.error("Please add a message");
       return;
     }
+
+    // If tutor has an hourly rate, use Stripe checkout
+    if (hasHourlyRate) {
+      try {
+        const session = await createCheckout.mutateAsync([
+          {
+            name: `${selectedSession.label} with ${selectedTutor.name}`,
+            description: bookingMessage.slice(0, 200),
+            amount: sessionPriceCents,
+            quantity: 1,
+          },
+        ]);
+        window.location.href = session.url;
+      } catch {
+        toast.error("Failed to start payment. Please try again.");
+      }
+      return;
+    }
+
+    // No hourly rate — send plain booking request
     try {
       await createBooking.mutateAsync({
         tutor: selectedTutor.user as Principal,
@@ -307,8 +260,9 @@ export default function TutorsPage() {
       toast.success("Booking request sent!");
       setBookingOpen(false);
       setBookingMessage("");
-    } catch {
-      toast.error("Failed to send booking request");
+    } catch (err) {
+      console.error("Booking request error:", err);
+      toast.error("Failed to send request. Please try again.");
     }
   };
 
@@ -387,7 +341,7 @@ export default function TutorsPage() {
                 Find Your Perfect Guide
               </h1>
               <p className="text-muted-foreground mt-1.5">
-                Connect with {allProfiles.length}+ verified tutors and mentors
+                Connect with verified tutors and mentors worldwide
               </p>
             </div>
             {isLoggedIn && (
@@ -490,11 +444,32 @@ export default function TutorsPage() {
           >
             <Users className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
             <h3 className="font-display text-lg font-semibold mb-2">
-              No tutors found
+              {searchQuery || filterRole !== "all" || filterExam !== "all"
+                ? "No tutors found"
+                : "No tutors or mentors yet"}
             </h3>
-            <p className="text-muted-foreground text-sm">
-              Try adjusting your filters or search query
+            <p className="text-muted-foreground text-sm mb-6">
+              {searchQuery || filterRole !== "all" || filterExam !== "all"
+                ? "Try adjusting your filters or search query"
+                : "No tutors or mentors have signed up yet. Be the first to create a profile!"}
             </p>
+            {!searchQuery &&
+              filterRole === "all" &&
+              filterExam === "all" &&
+              (isLoggedIn ? (
+                <Button
+                  onClick={() => setCreateProfileOpen(true)}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                  data-ocid="tutors.empty_state.button"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create My Profile
+                </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Sign in to create your profile
+                </p>
+              ))}
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -675,7 +650,7 @@ export default function TutorsPage() {
                 </div>
 
                 {/* Actions */}
-                {isLoggedIn && (
+                {isLoggedIn ? (
                   <div className="flex gap-3">
                     <Button
                       className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
@@ -695,6 +670,10 @@ export default function TutorsPage() {
                       Review
                     </Button>
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2 bg-surface-2 rounded-lg border border-border/50">
+                    Log in to send a booking request or leave a review
+                  </p>
                 )}
 
                 <Separator className="bg-border/50" />
@@ -723,10 +702,55 @@ export default function TutorsPage() {
               Book {selectedTutor?.name}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground text-sm">
-              Send a message explaining what you need help with
+              {hasHourlyRate
+                ? "Choose a session type and pay securely via Stripe"
+                : "Send a message explaining what you need help with"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            {/* Session Type (only if tutor has an hourly rate) */}
+            {hasHourlyRate && (
+              <>
+                <div>
+                  <Label className="text-sm font-medium text-foreground mb-1.5 block">
+                    Session Type
+                  </Label>
+                  <Select
+                    value={sessionType}
+                    onValueChange={(v) => setSessionType(v as SessionTypeValue)}
+                  >
+                    <SelectTrigger
+                      className="bg-surface-2 border-border/60"
+                      data-ocid="tutors.booking.session_type.select"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SESSION_TYPES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Price display */}
+                <div
+                  className="flex items-center justify-between p-3 rounded-lg bg-primary/8 border border-primary/20"
+                  data-ocid="tutors.booking.price.card"
+                >
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <DollarSign className="w-4 h-4 text-primary" />
+                    <span>{selectedSession.label}</span>
+                  </div>
+                  <span className="font-display font-bold text-primary text-lg">
+                    ${sessionPriceDollars.toFixed(2)}
+                  </span>
+                </div>
+              </>
+            )}
+
             <div>
               <Label className="text-sm font-medium text-foreground mb-1.5 block">
                 Your Message
@@ -752,15 +776,19 @@ export default function TutorsPage() {
               <Button
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
                 onClick={handleBook}
-                disabled={createBooking.isPending}
-                data-ocid="tutors.booking.submit_button"
+                disabled={createBooking.isPending || createCheckout.isPending}
+                data-ocid="tutors.booking.pay.primary_button"
               >
-                {createBooking.isPending ? (
+                {createBooking.isPending || createCheckout.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
+                ) : hasHourlyRate ? (
+                  <CreditCard className="w-4 h-4" />
                 ) : (
                   <Send className="w-4 h-4" />
                 )}
-                Send Request
+                {hasHourlyRate
+                  ? `Book & Pay ($${sessionPriceDollars.toFixed(2)})`
+                  : "Send Request"}
               </Button>
             </div>
           </div>

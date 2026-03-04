@@ -377,4 +377,57 @@ export function useAddBookmark() {
   });
 }
 
+export function useIsStripeConfigured() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["stripeConfigured"],
+    queryFn: async () => {
+      if (!actor) return false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (actor as any).isStripeConfigured() as Promise<boolean>;
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSetStripeConfiguration() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      secretKey,
+      allowedCountries,
+    }: {
+      secretKey: string;
+      allowedCountries: string[];
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (actor as any).setStripeConfiguration({
+        secretKey,
+        allowedCountries,
+      }) as Promise<void>;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["stripeConfigured"] }),
+  });
+}
+
+export function useAddExamCategory() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      name,
+      description,
+    }: {
+      name: string;
+      description: string;
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.addExamCategory(name, description);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["examCategories"] }),
+  });
+}
+
 export { BookingStatus };

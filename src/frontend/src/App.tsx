@@ -3,9 +3,12 @@ import { Outlet, RouterProvider, createRouter } from "@tanstack/react-router";
 import { createRootRoute, createRoute } from "@tanstack/react-router";
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
+import AdminPage from "./pages/AdminPage";
 import GuidancePage from "./pages/GuidancePage";
 import LandingPage from "./pages/LandingPage";
 import NotesPage from "./pages/NotesPage";
+import PaymentFailurePage from "./pages/PaymentFailurePage";
+import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import ProfilePage from "./pages/ProfilePage";
 import TutorsPage from "./pages/TutorsPage";
 
@@ -53,12 +56,33 @@ const profileRoute = createRoute({
   component: ProfilePage,
 });
 
+const paymentSuccessRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/payment-success",
+  component: PaymentSuccessPage,
+});
+
+const paymentFailureRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/payment-failure",
+  component: PaymentFailurePage,
+});
+
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin",
+  component: AdminPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   notesRoute,
   tutorsRoute,
   guidanceRoute,
   profileRoute,
+  paymentSuccessRoute,
+  paymentFailureRoute,
+  adminRoute,
 ]);
 
 const router = createRouter({ routeTree });

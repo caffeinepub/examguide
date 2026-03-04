@@ -1,16 +1,16 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
-  Award,
   BookMarked,
   BookOpen,
   CheckCircle,
   Compass,
-  Globe,
-  Star,
+  FileText,
+  Globe2,
   TrendingUp,
   Users,
   Zap,
@@ -18,14 +18,11 @@ import {
 import { motion } from "motion/react";
 import type { Variants } from "motion/react";
 import { SAMPLE_EXAM_CATEGORIES } from "../data/sampleData";
-import { useExamCategories } from "../hooks/useQueries";
-
-const STATS = [
-  { value: "150+", label: "Countries", icon: Globe },
-  { value: "50K+", label: "Students", icon: Users },
-  { value: "200+", label: "Expert Tutors", icon: Star },
-  { value: "30+", label: "Exams Covered", icon: Award },
-];
+import {
+  useExamCategories,
+  useStudyNotes,
+  useTutorProfiles,
+} from "../hooks/useQueries";
 
 const FEATURES = [
   {
@@ -80,11 +77,36 @@ const EXAM_COLORS = [
 ];
 
 export default function LandingPage() {
-  const { data: backendCategories } = useExamCategories();
+  const { data: tutors, isLoading: tutorsLoading } = useTutorProfiles();
+  const { data: notes, isLoading: notesLoading } = useStudyNotes();
+  const { data: backendCategories, isLoading: categoriesLoading } =
+    useExamCategories();
+
   const categories =
     backendCategories && backendCategories.length > 0
       ? backendCategories
       : SAMPLE_EXAM_CATEGORIES;
+
+  const dynamicStats = [
+    {
+      value: tutors?.length ?? 0,
+      label: "Tutors & Mentors",
+      icon: Users,
+      isLoading: tutorsLoading,
+    },
+    {
+      value: notes?.length ?? 0,
+      label: "Study Notes",
+      icon: FileText,
+      isLoading: notesLoading,
+    },
+    {
+      value: backendCategories?.length ?? 0,
+      label: "Exam Categories",
+      icon: Globe2,
+      isLoading: categoriesLoading,
+    },
+  ];
 
   return (
     <div className="overflow-hidden">
@@ -133,7 +155,7 @@ export default function LandingPage() {
                 className="mb-6 border-primary/40 bg-primary/10 text-primary px-4 py-1.5 text-sm font-medium"
               >
                 <Zap className="w-3.5 h-3.5 mr-1.5" />
-                Trusted by 50,000+ students globally
+                Open platform for exam prep worldwide
               </Badge>
             </motion.div>
 
@@ -209,22 +231,27 @@ export default function LandingPage() {
       <section className="relative z-10 -mt-px border-y border-border/50 bg-surface-1/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-8">
           <motion.div
-            className="grid grid-cols-2 md:grid-cols-4 gap-6"
+            className="grid grid-cols-3 gap-6"
             initial="hidden"
             whileInView="show"
             viewport={{ once: true }}
             variants={containerVariants}
           >
-            {STATS.map(({ value, label, icon: Icon }) => (
+            {dynamicStats.map(({ value, label, icon: Icon, isLoading }) => (
               <motion.div
                 key={label}
                 variants={itemVariants}
                 className="flex flex-col items-center gap-2 text-center"
+                data-ocid="stats.section"
               >
                 <Icon className="w-5 h-5 text-primary" />
-                <span className="font-display text-3xl font-bold text-gradient-amber">
-                  {value}
-                </span>
+                {isLoading ? (
+                  <Skeleton className="h-9 w-16 rounded-md" />
+                ) : (
+                  <span className="font-display text-3xl font-bold text-gradient-amber">
+                    {value}
+                  </span>
+                )}
                 <span className="text-sm text-muted-foreground">{label}</span>
               </motion.div>
             ))}

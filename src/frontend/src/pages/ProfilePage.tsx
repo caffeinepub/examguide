@@ -29,8 +29,10 @@ import type { Principal } from "@icp-sdk/core/principal";
 import {
   BookOpen,
   CheckCircle,
+  CheckCircle2,
   Clock,
   Compass,
+  CreditCard,
   Edit,
   GraduationCap,
   Loader2,
@@ -48,11 +50,7 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { BookingRequest } from "../backend.d";
-import {
-  SAMPLE_GUIDANCE_POSTS,
-  SAMPLE_STUDY_NOTES,
-  formatTimestamp,
-} from "../data/sampleData";
+import { formatTimestamp } from "../data/sampleData";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   BookingStatus,
@@ -63,7 +61,9 @@ import {
   useDeleteGuidancePost,
   useDeleteStudyNote,
   useGuidancePosts,
+  useIsStripeConfigured,
   useSaveUserProfile,
+  useSetStripeConfiguration,
   useStudyNotes,
   useUpdateBookingStatus,
 } from "../hooks/useQueries";
@@ -152,6 +152,8 @@ export default function ProfilePage() {
   const [deleteNoteId, setDeleteNoteId] = useState<number | null>(null);
   const [deletePostId, setDeletePostId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [stripeKey, setStripeKey] = useState("");
+  const [stripeCountries, setStripeCountries] = useState("US,CA,GB,AU");
 
   const { data: profile, isLoading: profileLoading } = useCallerProfile();
   const { data: role } = useCallerRole();
@@ -166,6 +168,8 @@ export default function ProfilePage() {
   const deleteNote = useDeleteStudyNote();
   const deletePost = useDeleteGuidancePost();
   const updateBooking = useUpdateBookingStatus();
+  const { data: stripeConfigured } = useIsStripeConfigured();
+  const setStripeConfig = useSetStripeConfiguration();
 
   // Populate form when profile loads
   useEffect(() => {
@@ -176,12 +180,8 @@ export default function ProfilePage() {
     }
   }, [profile]);
 
-  const allNotes =
-    backendNotes && backendNotes.length > 0 ? backendNotes : SAMPLE_STUDY_NOTES;
-  const allPosts =
-    backendPosts && backendPosts.length > 0
-      ? backendPosts
-      : SAMPLE_GUIDANCE_POSTS;
+  const allNotes = backendNotes ?? [];
+  const allPosts = backendPosts ?? [];
 
   const myNotes = principal
     ? allNotes.filter((n) => {
@@ -236,6 +236,27 @@ export default function ProfilePage() {
       toast.success(`Booking ${status}`);
     } catch {
       toast.error("Failed to update booking");
+    }
+  };
+
+  const handleSaveStripe = async () => {
+    if (!stripeKey.trim()) {
+      toast.error("Please enter a Stripe Secret Key");
+      return;
+    }
+    const countries = stripeCountries
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    try {
+      await setStripeConfig.mutateAsync({
+        secretKey: stripeKey,
+        allowedCountries: countries,
+      });
+      toast.success("Stripe configured successfully!");
+      setStripeKey("");
+    } catch {
+      toast.error("Failed to save Stripe configuration");
     }
   };
 
@@ -444,7 +465,7 @@ export default function ProfilePage() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-surface-2 border border-border/60 h-auto p-1 gap-1 w-full sm:w-auto">
+            <TabsList className="bg-surface-2 border border-border/60 h-auto p-1 gap-1 w-full sm:w-auto flex-wrap">
               <TabsTrigger
                 value="overview"
                 className="text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -473,6 +494,16 @@ export default function ProfilePage() {
               >
                 Bookings ({bookingRequests?.length ?? 0})
               </TabsTrigger>
+              {role === "admin" && (
+                <TabsTrigger
+                  value="payments"
+                  className="text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+                  data-ocid="profile.payments.tab"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  Payments
+                </TabsTrigger>
+              )}
             </TabsList>
 
             {/* Overview */}
@@ -619,6 +650,113 @@ export default function ProfilePage() {
                 </div>
               )}
             </TabsContent>
+
+            {/* Payments (admin only) */}
+            {role === "admin" && (
+              <TabsContent value="payments" className="mt-6">
+                <div className="p-6 rounded-2xl bg-card border border-border/60">
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                      <CreditCard className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-display font-bold text-foreground">
+                        Stripe Configuration
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Enable paid tutor sessions on ExamGuide
+                      </p>
+                    </div>
+                  </div>
+
+                  <Separator className="my-5 bg-border/50" />
+
+                  {/* Status */}
+                  {stripeConfigured ? (
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-teal/8 border border-teal/25 mb-6">
+                      <CheckCircle2 className="w-5 h-5 text-teal shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-teal">
+                          Stripe is configured and active
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Students can now pay tutors directly through
+                          ExamGuide.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 mb-6">
+                      <div className="p-4 rounded-xl bg-chart-4/8 border border-chart-4/25 text-sm text-chart-4 font-medium mb-4">
+                        Stripe is not yet configured. Add your keys below to
+                        enable payments.
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-foreground mb-1.5 block">
+                          Stripe Secret Key
+                        </Label>
+                        <Input
+                          type="password"
+                          value={stripeKey}
+                          onChange={(e) => setStripeKey(e.target.value)}
+                          placeholder="sk_live_..."
+                          className="bg-surface-2 border-border/60 font-mono text-sm"
+                          data-ocid="profile.stripe.secret_key.input"
+                          autoComplete="off"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Find this in your Stripe Dashboard → Developers → API
+                          keys.
+                        </p>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-foreground mb-1.5 block">
+                          Allowed Countries (comma-separated)
+                        </Label>
+                        <Input
+                          value={stripeCountries}
+                          onChange={(e) => setStripeCountries(e.target.value)}
+                          placeholder="US,CA,GB,AU"
+                          className="bg-surface-2 border-border/60"
+                          data-ocid="profile.stripe.countries.input"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ISO 3166-1 alpha-2 country codes, e.g. US, CA, GB, IN.
+                        </p>
+                      </div>
+
+                      <Button
+                        onClick={handleSaveStripe}
+                        disabled={setStripeConfig.isPending}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                        data-ocid="profile.stripe.save.button"
+                      >
+                        {setStripeConfig.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        Save Stripe Configuration
+                      </Button>
+                    </div>
+                  )}
+
+                  <Separator className="my-5 bg-border/50" />
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    <span className="font-medium text-foreground/80">
+                      How it works:{" "}
+                    </span>
+                    Tutors on ExamGuide earn money when students book paid
+                    sessions. Each tutor sets their hourly rate on their
+                    profile. Configure your Stripe keys above to enable the
+                    payment flow for all tutors.
+                  </p>
+                </div>
+              </TabsContent>
+            )}
 
             {/* Bookings */}
             <TabsContent value="bookings" className="mt-6">

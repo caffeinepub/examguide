@@ -34,11 +34,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { StudyNote } from "../backend.d";
-import {
-  SAMPLE_EXAM_CATEGORIES,
-  SAMPLE_STUDY_NOTES,
-  formatTimestamp,
-} from "../data/sampleData";
+import { SAMPLE_EXAM_CATEGORIES, formatTimestamp } from "../data/sampleData";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useCreateStudyNote,
@@ -166,13 +162,7 @@ export default function NotesPage() {
       ? backendCategories
       : SAMPLE_EXAM_CATEGORIES;
 
-  const allNotes = useMemo(() => {
-    const backend =
-      backendNotes && backendNotes.length > 0
-        ? backendNotes
-        : SAMPLE_STUDY_NOTES;
-    return backend;
-  }, [backendNotes]);
+  const allNotes = backendNotes ?? [];
 
   const displayNotes = useMemo(() => {
     let notes = debouncedSearch && searchResults ? searchResults : allNotes;
@@ -380,8 +370,7 @@ export default function NotesPage() {
                 Expert Study Notes
               </h1>
               <p className="text-muted-foreground mt-1.5">
-                Browse {allNotes.length}+ high-quality notes from top scorers
-                worldwide
+                Browse high-quality notes from top scorers worldwide
               </p>
             </div>
             {isLoggedIn && (

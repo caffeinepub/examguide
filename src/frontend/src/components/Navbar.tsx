@@ -8,6 +8,7 @@ import {
   LogIn,
   LogOut,
   Menu,
+  Shield,
   User,
   Users,
   X,
@@ -68,6 +69,21 @@ export default function Navbar() {
               {label}
             </Link>
           ))}
+          {isLoggedIn && (
+            <Link
+              to="/admin"
+              data-ocid="nav.admin.link"
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                currentPath === "/admin"
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+              )}
+            >
+              <Shield className="w-4 h-4" />
+              Admin
+            </Link>
+          )}
         </div>
 
         {/* Auth Button */}
@@ -141,6 +157,22 @@ export default function Navbar() {
                   {label}
                 </Link>
               ))}
+              {isLoggedIn && (
+                <Link
+                  to="/admin"
+                  onClick={() => setMobileOpen(false)}
+                  data-ocid="nav.mobile.admin.link"
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                    currentPath === "/admin"
+                      ? "bg-primary/15 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+                  )}
+                >
+                  <Shield className="w-4 h-4" />
+                  Admin
+                </Link>
+              )}
               <div className="pt-2 border-t border-border/50">
                 {isLoggedIn ? (
                   <Button
