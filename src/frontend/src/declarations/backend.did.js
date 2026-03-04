@@ -13,6 +13,13 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const ShoppingItem = IDL.Record({
+  'productName' : IDL.Text,
+  'currency' : IDL.Text,
+  'quantity' : IDL.Nat,
+  'priceInCents' : IDL.Nat,
+  'productDescription' : IDL.Text,
+});
 export const ExamCategory = IDL.Record({
   'id' : IDL.Nat32,
   'name' : IDL.Text,
@@ -73,13 +80,48 @@ export const Review = IDL.Record({
   'timestamp' : Time,
   'rating' : IDL.Nat32,
 });
+export const StripeSessionStatus = IDL.Variant({
+  'completed' : IDL.Record({
+    'userPrincipal' : IDL.Opt(IDL.Text),
+    'response' : IDL.Text,
+  }),
+  'failed' : IDL.Record({ 'error' : IDL.Text }),
+});
+export const StripeConfiguration = IDL.Record({
+  'allowedCountries' : IDL.Vec(IDL.Text),
+  'secretKey' : IDL.Text,
+});
+export const http_header = IDL.Record({
+  'value' : IDL.Text,
+  'name' : IDL.Text,
+});
+export const http_request_result = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
+});
+export const TransformationInput = IDL.Record({
+  'context' : IDL.Vec(IDL.Nat8),
+  'response' : http_request_result,
+});
+export const TransformationOutput = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(http_header),
+});
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addBookmark' : IDL.Func([IDL.Nat32], [], []),
   'addExamCategory' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat32], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'claimInitialAdmin' : IDL.Func([], [IDL.Text], []),
   'createBookingRequest' : IDL.Func([IDL.Principal, IDL.Text], [IDL.Nat32], []),
+  'createCheckoutSession' : IDL.Func(
+      [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
+      [IDL.Text],
+      [],
+    ),
   'createGuidancePost' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Nat32],
       [IDL.Nat32],
@@ -136,10 +178,18 @@ export const idlService = IDL.Service({
       [IDL.Vec(Review)],
       ['query'],
     ),
+  'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
   'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(T)], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'saveCallerUserProfile' : IDL.Func([T], [], []),
   'searchNotesByTitle' : IDL.Func([IDL.Text], [IDL.Vec(StudyNote)], ['query']),
+  'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+  'transform' : IDL.Func(
+      [TransformationInput],
+      [TransformationOutput],
+      ['query'],
+    ),
   'updateBookingRequestStatus' : IDL.Func([IDL.Nat32, BookingStatus], [], []),
   'updateGuidancePost' : IDL.Func([IDL.Nat32, IDL.Text, IDL.Text], [], []),
   'updateStudyNote' : IDL.Func(
@@ -156,6 +206,13 @@ export const idlFactory = ({ IDL }) => {
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
+  });
+  const ShoppingItem = IDL.Record({
+    'productName' : IDL.Text,
+    'currency' : IDL.Text,
+    'quantity' : IDL.Nat,
+    'priceInCents' : IDL.Nat,
+    'productDescription' : IDL.Text,
   });
   const ExamCategory = IDL.Record({
     'id' : IDL.Nat32,
@@ -217,15 +274,47 @@ export const idlFactory = ({ IDL }) => {
     'timestamp' : Time,
     'rating' : IDL.Nat32,
   });
+  const StripeSessionStatus = IDL.Variant({
+    'completed' : IDL.Record({
+      'userPrincipal' : IDL.Opt(IDL.Text),
+      'response' : IDL.Text,
+    }),
+    'failed' : IDL.Record({ 'error' : IDL.Text }),
+  });
+  const StripeConfiguration = IDL.Record({
+    'allowedCountries' : IDL.Vec(IDL.Text),
+    'secretKey' : IDL.Text,
+  });
+  const http_header = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const http_request_result = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
+  });
+  const TransformationInput = IDL.Record({
+    'context' : IDL.Vec(IDL.Nat8),
+    'response' : http_request_result,
+  });
+  const TransformationOutput = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(http_header),
+  });
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addBookmark' : IDL.Func([IDL.Nat32], [], []),
     'addExamCategory' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat32], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'claimInitialAdmin' : IDL.Func([], [IDL.Text], []),
     'createBookingRequest' : IDL.Func(
         [IDL.Principal, IDL.Text],
         [IDL.Nat32],
+        [],
+      ),
+    'createCheckoutSession' : IDL.Func(
+        [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
+        [IDL.Text],
         [],
       ),
     'createGuidancePost' : IDL.Func(
@@ -284,12 +373,20 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(Review)],
         ['query'],
       ),
+    'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
     'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(T)], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
     'saveCallerUserProfile' : IDL.Func([T], [], []),
     'searchNotesByTitle' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(StudyNote)],
+        ['query'],
+      ),
+    'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+    'transform' : IDL.Func(
+        [TransformationInput],
+        [TransformationOutput],
         ['query'],
       ),
     'updateBookingRequestStatus' : IDL.Func([IDL.Nat32, BookingStatus], [], []),

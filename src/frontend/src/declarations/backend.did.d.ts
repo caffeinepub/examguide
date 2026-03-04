@@ -42,6 +42,21 @@ export interface Review {
   'timestamp' : Time,
   'rating' : number,
 }
+export interface ShoppingItem {
+  'productName' : string,
+  'currency' : string,
+  'quantity' : bigint,
+  'priceInCents' : bigint,
+  'productDescription' : string,
+}
+export interface StripeConfiguration {
+  'allowedCountries' : Array<string>,
+  'secretKey' : string,
+}
+export type StripeSessionStatus = {
+    'completed' : { 'userPrincipal' : [] | [string], 'response' : string }
+  } |
+  { 'failed' : { 'error' : string } };
 export interface StudyNote {
   'id' : number,
   'title' : string,
@@ -57,6 +72,15 @@ export interface T {
   'expertiseTags' : Array<string>,
 }
 export type Time = bigint;
+export interface TransformationInput {
+  'context' : Uint8Array,
+  'response' : http_request_result,
+}
+export interface TransformationOutput {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<http_header>,
+}
 export interface TutorMentorProfile {
   'id' : number,
   'bio' : string,
@@ -71,12 +95,23 @@ export interface TutorMentorProfile {
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface http_header { 'value' : string, 'name' : string }
+export interface http_request_result {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<http_header>,
+}
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addBookmark' : ActorMethod<[number], undefined>,
   'addExamCategory' : ActorMethod<[string, string], number>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'claimInitialAdmin' : ActorMethod<[], string>,
   'createBookingRequest' : ActorMethod<[Principal, string], number>,
+  'createCheckoutSession' : ActorMethod<
+    [Array<ShoppingItem>, string, string],
+    string
+  >,
   'createGuidancePost' : ActorMethod<[string, string, number], number>,
   'createReview' : ActorMethod<[Principal, number, string], number>,
   'createStudyNote' : ActorMethod<[string, string, string, number], number>,
@@ -105,12 +140,22 @@ export interface _SERVICE {
   >,
   'getBookmarks' : ActorMethod<[Principal], Uint32Array>,
   'getCallerUserProfile' : ActorMethod<[], [] | [T]>,
+  /**
+   * / COMPONENTS
+   */
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getReviewsForTutor' : ActorMethod<[Principal], Array<Review>>,
+  'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
   'getUserProfile' : ActorMethod<[Principal], [] | [T]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'isStripeConfigured' : ActorMethod<[], boolean>,
   'saveCallerUserProfile' : ActorMethod<[T], undefined>,
   'searchNotesByTitle' : ActorMethod<[string], Array<StudyNote>>,
+  'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
+  /**
+   * / TRANSFORM CALLBACK REQUIRED FOR OUTCALLS TO STRIPE
+   */
+  'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
   'updateBookingRequestStatus' : ActorMethod<
     [number, BookingStatus],
     undefined

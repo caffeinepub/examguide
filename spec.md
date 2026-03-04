@@ -1,43 +1,22 @@
 # ExamGuide
 
 ## Current State
+Full-stack app with Motoko backend and React frontend. Features: exam categories, study notes, guidance posts, tutor/mentor profiles, booking requests, reviews, bookmarks, user profiles, Stripe payments, and an admin page.
 
-New project. No existing backend or frontend code.
+The admin claim flow uses `_initializeAccessControlWithSecret("")` which fails once `adminAssigned` is `true` (i.e., any user has registered). This means the owner cannot claim admin if other users registered first.
 
 ## Requested Changes (Diff)
 
 ### Add
-
-**Backend:**
-- User profiles (students, tutors, mentors) with roles and subject expertise
-- Exam categories (e.g. SAT, GMAT, GRE, IELTS, JEE, UPSC, A-Levels, etc.)
-- Notes: CRUD for study notes organized by exam and subject
-- Tutor/Mentor listings: profiles with subjects, availability, bio, exam expertise
-- Guidance posts: articles or tips organized by exam category
-- Bookmarks: students can bookmark notes and tutors
-- Reviews/ratings for tutors and mentors
-
-**Frontend:**
-- Landing page with exam category browsing
-- Notes library: browse, search, and view notes by exam
-- Tutor/Mentor directory: browse profiles, filter by exam/subject
-- Tutor profile page with contact/booking request
-- Guidance articles page by exam category
-- User profile: role selection (student/tutor/mentor), manage own notes or profile
-- Bookmarks page for saved resources
+- Backend: `claimInitialAdmin()` -- a one-time function that directly assigns the `#admin` role to the caller if `adminAssigned` is false. No token required. Traps if admin is already assigned or caller is anonymous.
+- Backend: expose `claimInitialAdmin` in backend.d.ts
 
 ### Modify
-- N/A (new project)
+- Frontend `useClaimAdminAccess` hook: call `actor.claimInitialAdmin()` instead of `actor._initializeAccessControlWithSecret("")`
 
 ### Remove
-- N/A (new project)
+- Nothing removed
 
 ## Implementation Plan
-
-1. Define backend data types: User, ExamCategory, Note, TutorProfile, GuidancePost, Bookmark, Review
-2. Implement CRUD operations for notes and guidance posts
-3. Implement tutor/mentor listing and profile management
-4. Implement bookmarking and review/rating system
-5. Build frontend: landing page, notes library, tutor directory, guidance section
-6. Build user profile and role management UI
-7. Wire all frontend components to backend APIs
+1. Regenerate Motoko backend with `claimInitialAdmin()` function added alongside all existing functions
+2. Update frontend `useClaimAdminAccess` hook to call `claimInitialAdmin`

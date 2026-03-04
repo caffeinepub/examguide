@@ -3,13 +3,15 @@ import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat32 "mo:core/Nat32";
 import Time "mo:core/Time";
-import Order "mo:core/Order";
 import Array "mo:core/Array";
-import Principal "mo:core/Principal";
+import Order "mo:core/Order";
 import Iter "mo:core/Iter";
 import Text "mo:core/Text";
+import Principal "mo:core/Principal";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
+import Stripe "stripe/stripe";
+import OutCall "http-outcalls/outcall";
 
 actor {
   /// COMPONENTS
@@ -23,7 +25,6 @@ actor {
       name : Text;
       description : Text;
     };
-
     public func compare(a : T, b : T) : Order.Order {
       Nat32.compare(a.id, b.id);
     };
@@ -39,7 +40,6 @@ actor {
       author : Principal;
       timestamp : Time.Time;
     };
-
     public func compare(a : T, b : T) : Order.Order {
       Nat32.compare(a.id, b.id);
     };
@@ -54,7 +54,6 @@ actor {
       author : Principal;
       timestamp : Time.Time;
     };
-
     public func compare(a : T, b : T) : Order.Order {
       Nat32.compare(a.id, b.id);
     };
@@ -72,7 +71,6 @@ actor {
       bio : Text;
       isMentor : Bool;
     };
-
     public func compare(a : T, b : T) : Order.Order {
       Nat32.compare(a.id, b.id);
     };
@@ -87,7 +85,6 @@ actor {
       timestamp : Time.Time;
       status : BookingStatus;
     };
-
     public func compare(a : T, b : T) : Order.Order {
       Nat32.compare(a.id, b.id);
     };
@@ -102,7 +99,6 @@ actor {
       text : Text;
       timestamp : Time.Time;
     };
-
     public func compare(a : T, b : T) : Order.Order {
       Nat32.compare(a.id, b.id);
     };
@@ -141,6 +137,9 @@ actor {
   var nextBookingId = 1;
   var nextReviewId = 1;
 
+  // Admin assignment tracking
+  var adminAssigned = false;
+
   // Type aliases
   public type Profile = UserProfile.T;
   public type ExamCategory = ExamCategory.T;
@@ -149,6 +148,46 @@ actor {
   public type TutorMentorProfile = TutorMentorProfile.T;
   public type BookingRequest = BookingRequest.T;
   public type Review = Review.T;
+
+  // Stripe integration
+  var configuration : ?Stripe.StripeConfiguration = null;
+
+  /// TRANSFORM CALLBACK REQUIRED FOR OUTCALLS TO STRIPE
+  public query ({ caller }) func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
+    OutCall.transform(input);
+  };
+
+  public query ({ caller }) func isStripeConfigured() : async Bool {
+    configuration != null;
+  };
+
+  public shared ({ caller }) func setStripeConfiguration(config : Stripe.StripeConfiguration) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    configuration := ?config;
+  };
+
+  func getStripeConfiguration() : Stripe.StripeConfiguration {
+    switch (configuration) {
+      case (null) { Runtime.trap("Stripe needs to be first configured") };
+      case (?value) { value };
+    };
+  };
+
+  public shared ({ caller }) func createCheckoutSession(items : [Stripe.ShoppingItem], successUrl : Text, cancelUrl : Text) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can create payment sessions");
+    };
+    await Stripe.createCheckoutSession(getStripeConfiguration(), caller, items, successUrl, cancelUrl, transform);
+  };
+
+  public shared ({ caller }) func getStripeSessionStatus(sessionId : Text) : async Stripe.StripeSessionStatus {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can check payment session status");
+    };
+    await Stripe.getSessionStatus(getStripeConfiguration(), sessionId, transform);
+  };
 
   // User Profile Management (Required by frontend)
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile.T {
@@ -223,7 +262,9 @@ actor {
     switch (studyNotes.get(id)) {
       case (null) { Runtime.trap("Note not found") };
       case (?note) {
-        if (note.author != caller) { Runtime.trap("Unauthorized: Only the author can update") };
+        if (note.author != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the author or admin can update");
+        };
         let updatedNote = { note with title; content; subject };
         studyNotes.add(id, updatedNote);
       };
@@ -237,7 +278,9 @@ actor {
     switch (studyNotes.get(id)) {
       case (null) { Runtime.trap("Note not found") };
       case (?note) {
-        if (note.author != caller) { Runtime.trap("Unauthorized: Only the author can delete") };
+        if (note.author != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the author or admin can delete");
+        };
         studyNotes.remove(id);
       };
     };
@@ -274,7 +317,9 @@ actor {
     switch (guidancePosts.get(id)) {
       case (null) { Runtime.trap("Post not found") };
       case (?post) {
-        if (post.author != caller) { Runtime.trap("Unauthorized: Only the author can update") };
+        if (post.author != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the author or admin can update");
+        };
         let updatedPost = { post with title; body };
         guidancePosts.add(id, updatedPost);
       };
@@ -288,7 +333,9 @@ actor {
     switch (guidancePosts.get(id)) {
       case (null) { Runtime.trap("Post not found") };
       case (?post) {
-        if (post.author != caller) { Runtime.trap("Unauthorized: Only the author can delete") };
+        if (post.author != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the author or admin can delete");
+        };
         guidancePosts.remove(id);
       };
     };
@@ -344,9 +391,9 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view booking requests");
     };
-    // Only the tutor can view their own booking requests
+    // Only the tutor or admin can view their booking requests
     if (caller != tutor and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own booking requests");
+      Runtime.trap("Unauthorized: Can only view your own booking requests or admin access required");
     };
     let allRequests = bookingRequests.values().toArray();
     allRequests.filter<BookingRequest>(func(req) { req.tutor == tutor }).sort();
@@ -360,8 +407,8 @@ actor {
       case (null) { Runtime.trap("Request not found") };
       case (?request) {
         // Only the tutor can update the status of their booking requests
-        if (request.tutor != caller) {
-          Runtime.trap("Unauthorized: Only the tutor can update booking request status");
+        if (request.tutor != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the tutor or admin can update booking request status");
         };
         bookingRequests.add(id, { request with status });
       };
@@ -413,9 +460,9 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view bookmarks");
     };
-    // Users can only view their own bookmarks
+    // Users can only view their own bookmarks unless they are admin
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own bookmarks");
+      Runtime.trap("Unauthorized: Can only view your own bookmarks or admin access required");
     };
     switch (bookmarks.get(user)) {
       case (null) { [] };
@@ -443,5 +490,24 @@ actor {
     allNotes.filter<StudyNote>(func(note) {
       note.title.contains(#text queryText);
     }).sort();
+  };
+
+  // Claim initial admin (NEW FEATURE)
+  public shared ({ caller }) func claimInitialAdmin() : async Text {
+    // Check if caller is anonymous
+    if (caller.isAnonymous()) {
+      Runtime.trap("Must be logged in to claim admin");
+    };
+
+    // Check if admin has already been assigned
+    if (adminAssigned) {
+      Runtime.trap("Admin has already been assigned");
+    };
+
+    // Assign admin role to caller
+    AccessControl.assignRole(accessControlState, caller, caller, #admin);
+    adminAssigned := true;
+
+    "Admin access granted";
   };
 };

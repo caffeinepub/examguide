@@ -436,10 +436,7 @@ export function useClaimAdminAccess() {
   return useMutation({
     mutationFn: async () => {
       if (!actor) throw new Error("Not connected");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (actor as any)._initializeAccessControlWithSecret(
-        "",
-      ) as Promise<void>;
+      return actor.claimInitialAdmin();
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["callerRole"] });
