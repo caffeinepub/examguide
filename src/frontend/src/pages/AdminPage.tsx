@@ -30,7 +30,6 @@ import {
   CheckCircle2,
   Compass,
   CreditCard,
-  Info,
   Loader2,
   LogIn,
   Plus,
@@ -46,6 +45,7 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddExamCategory,
   useCallerRole,
+  useClaimAdminAccess,
   useExamCategories,
   useGuidancePosts,
   useIsStripeConfigured,
@@ -139,6 +139,7 @@ export default function AdminPage() {
 
   const addCategory = useAddExamCategory();
   const setStripeConfig = useSetStripeConfiguration();
+  const claimAdmin = useClaimAdminAccess();
 
   const [newCatName, setNewCatName] = useState("");
   const [newCatDesc, setNewCatDesc] = useState("");
@@ -248,36 +249,52 @@ export default function AdminPage() {
                 </Badge>
               </motion.div>
             ) : (
-              <div
-                className="flex items-start gap-4 p-5 rounded-2xl bg-chart-4/8 border border-chart-4/30"
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-6 rounded-2xl bg-card border border-primary/30 shadow-sm"
                 data-ocid="admin.access.error_state"
               >
-                <Info className="w-5 h-5 text-chart-4 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-chart-4 text-sm mb-1">
-                    Admin access required for some actions
-                  </p>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    To get admin access, open the app using the admin link
-                    provided by Caffeine. If you are the app owner, check your{" "}
-                    <a
-                      href="https://caffeine.ai"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+                <div className="flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
+                    <Shield className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-display font-bold text-foreground text-base mb-1">
+                      Claim Admin Access
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+                      If you are the app owner, click the button below to claim
+                      admin access. This can only be done once.
+                    </p>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await claimAdmin.mutateAsync();
+                          toast.success("Admin access granted!");
+                        } catch {
+                          toast.error(
+                            "Failed to claim admin access. It may have already been claimed.",
+                          );
+                        }
+                      }}
+                      disabled={claimAdmin.isPending}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                      data-ocid="admin.claim_admin.primary_button"
                     >
-                      Caffeine dashboard
-                    </a>{" "}
-                    for the admin access URL.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Current role:{" "}
-                    <span className="font-mono bg-surface-2 px-1.5 py-0.5 rounded text-foreground/70">
-                      {role ?? "guest"}
-                    </span>
-                  </p>
+                      {claimAdmin.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Shield className="w-4 h-4" />
+                      )}
+                      Claim Admin Access
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-3">
+                      Already an admin? Try refreshing the page.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             )}
           </section>
 

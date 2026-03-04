@@ -430,4 +430,21 @@ export function useAddExamCategory() {
   });
 }
 
+export function useClaimAdminAccess() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Not connected");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (actor as any)._initializeAccessControlWithSecret(
+        "",
+      ) as Promise<void>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["callerRole"] });
+    },
+  });
+}
+
 export { BookingStatus };
