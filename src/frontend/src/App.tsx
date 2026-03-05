@@ -10,6 +10,7 @@ import NotesPage from "./pages/NotesPage";
 import PaymentFailurePage from "./pages/PaymentFailurePage";
 import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import ProfilePage from "./pages/ProfilePage";
+import TransactionsPage from "./pages/TransactionsPage";
 import TutorsPage from "./pages/TutorsPage";
 
 // Root layout — uses Outlet for child routes
@@ -74,6 +75,12 @@ const adminRoute = createRoute({
   component: AdminPage,
 });
 
+const transactionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/transactions",
+  component: TransactionsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   notesRoute,
@@ -83,6 +90,7 @@ const routeTree = rootRoute.addChildren([
   paymentSuccessRoute,
   paymentFailureRoute,
   adminRoute,
+  transactionsRoute,
 ]);
 
 const router = createRouter({ routeTree });

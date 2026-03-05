@@ -37,6 +37,7 @@ import {
   DollarSign,
   Filter,
   GraduationCap,
+  Info,
   Loader2,
   MessageCircle,
   Plus,
@@ -54,10 +55,12 @@ import { formatTimestamp } from "../data/sampleData";
 import { useCreateCheckoutSession } from "../hooks/useCheckout";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
+  PLATFORM_FEE_PERCENT,
   useCreateBookingRequest,
   useCreateReview,
   useCreateTutorProfile,
   useExamCategories,
+  useRecordTransaction,
   useReviewsForTutor,
   useTutorProfiles,
 } from "../hooks/useQueries";
@@ -175,6 +178,7 @@ export default function TutorsPage() {
   const createBooking = useCreateBookingRequest();
   const createReview = useCreateReview();
   const createCheckout = useCreateCheckoutSession();
+  const recordTx = useRecordTransaction();
 
   // Calculate price based on session type and tutor's hourly rate
   const selectedSession = SESSION_TYPES.find((s) => s.value === sessionType)!;
@@ -236,14 +240,24 @@ export default function TutorsPage() {
     // If tutor has an hourly rate, use Stripe checkout
     if (hasHourlyRate) {
       try {
-        const session = await createCheckout.mutateAsync([
-          {
-            name: `${selectedSession.label} with ${selectedTutor.name}`,
-            description: bookingMessage.slice(0, 200),
-            amount: sessionPriceCents,
-            quantity: 1,
-          },
-        ]);
+        const successUrlSuffix = `?amount=${sessionPriceCents}&tutorName=${encodeURIComponent(selectedTutor.name)}&sessionType=${encodeURIComponent(selectedSession.label)}`;
+        const session = await createCheckout.mutateAsync({
+          items: [
+            {
+              name: `${selectedSession.label} with ${selectedTutor.name}`,
+              description: bookingMessage.slice(0, 200),
+              amount: sessionPriceCents,
+              quantity: 1,
+            },
+          ],
+          successUrlSuffix,
+        });
+        // best-effort record — don't await, don't block checkout
+        recordTx.mutate({
+          tutorName: selectedTutor.name,
+          sessionType: selectedSession.label,
+          totalAmount: sessionPriceCents,
+        });
         window.location.href = session.url;
       } catch {
         toast.error("Failed to start payment. Please try again.");
@@ -747,6 +761,45 @@ export default function TutorsPage() {
                   <span className="font-display font-bold text-primary text-lg">
                     ${sessionPriceDollars.toFixed(2)}
                   </span>
+                </div>
+
+                {/* Fee disclosure banner */}
+                <div
+                  className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-sm space-y-1"
+                  data-ocid="tutors.booking.fee_disclosure.card"
+                >
+                  <div className="flex items-center gap-2 font-semibold text-amber-600 dark:text-amber-400">
+                    <Info className="w-4 h-4 shrink-0" />
+                    Platform Fee Applies
+                  </div>
+                  <div className="text-muted-foreground text-xs space-y-0.5 pl-6">
+                    <div className="flex justify-between">
+                      <span>Total you pay</span>
+                      <span className="font-medium text-foreground">
+                        ${sessionPriceDollars.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>ExamGuide fee ({PLATFORM_FEE_PERCENT}%)</span>
+                      <span className="font-medium text-amber-600 dark:text-amber-400">
+                        $
+                        {(
+                          (sessionPriceDollars * PLATFORM_FEE_PERCENT) /
+                          100
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-amber-500/20 pt-0.5 mt-0.5">
+                      <span>Tutor receives</span>
+                      <span className="font-medium text-green-600 dark:text-green-400">
+                        $
+                        {(
+                          (sessionPriceDollars * (100 - PLATFORM_FEE_PERCENT)) /
+                          100
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </>
             )}

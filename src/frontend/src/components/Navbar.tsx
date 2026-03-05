@@ -8,6 +8,7 @@ import {
   LogIn,
   LogOut,
   Menu,
+  Receipt,
   Shield,
   User,
   Users,
@@ -69,6 +70,21 @@ export default function Navbar() {
               {label}
             </Link>
           ))}
+          {isLoggedIn && (
+            <Link
+              to="/transactions"
+              data-ocid="nav.transactions.link"
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                currentPath === "/transactions"
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+              )}
+            >
+              <Receipt className="w-4 h-4" />
+              Transactions
+            </Link>
+          )}
           {isLoggedIn && (
             <Link
               to="/admin"
@@ -157,6 +173,22 @@ export default function Navbar() {
                   {label}
                 </Link>
               ))}
+              {isLoggedIn && (
+                <Link
+                  to="/transactions"
+                  onClick={() => setMobileOpen(false)}
+                  data-ocid="nav.mobile.transactions.link"
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                    currentPath === "/transactions"
+                      ? "bg-primary/15 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+                  )}
+                >
+                  <Receipt className="w-4 h-4" />
+                  Transactions
+                </Link>
+              )}
               {isLoggedIn && (
                 <Link
                   to="/admin"

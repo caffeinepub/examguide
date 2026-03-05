@@ -1,9 +1,24 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "@tanstack/react-router";
-import { CheckCircle2, LayoutDashboard, Users } from "lucide-react";
+import { Link, useSearch } from "@tanstack/react-router";
+import { CheckCircle2, LayoutDashboard, Receipt, Users } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function PaymentSuccessPage() {
+  // Read query params for fee breakdown
+  const search = useSearch({ strict: false }) as Record<
+    string,
+    string | undefined
+  >;
+  const amountParam = search?.amount;
+  const tutorName = search?.tutorName
+    ? decodeURIComponent(search.tutorName)
+    : undefined;
+  const sessionType = search?.sessionType
+    ? decodeURIComponent(search.sessionType)
+    : undefined;
+  const amountCents = amountParam ? Number(amountParam) : 0;
+  const hasBreakdown = amountParam != null && amountCents > 0;
+
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4 py-16"
@@ -51,18 +66,72 @@ export default function PaymentSuccessPage() {
           <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-3">
             Payment Successful!
           </h1>
-          <p className="text-muted-foreground text-base leading-relaxed mb-8">
+          <p className="text-muted-foreground text-base leading-relaxed mb-6">
             Your session has been booked. The tutor will confirm your
             appointment shortly. Check your dashboard for updates.
           </p>
         </motion.div>
+
+        {/* Fee Breakdown Card */}
+        {hasBreakdown && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.4 }}
+            className="mb-6 text-left"
+            data-ocid="payment.success.fee_breakdown.card"
+          >
+            <div className="p-4 rounded-xl bg-card border border-border/60 text-sm">
+              <p className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-primary" />
+                Transaction Summary
+              </p>
+              <div className="space-y-2 text-xs">
+                {sessionType && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Session</span>
+                    <span className="font-medium">{sessionType}</span>
+                  </div>
+                )}
+                {tutorName && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tutor</span>
+                    <span className="font-medium">{tutorName}</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-border/40 pt-2 mt-1">
+                  <span className="text-muted-foreground">Total paid</span>
+                  <span className="font-medium">
+                    ${(amountCents / 100).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                  <span>ExamGuide fee (35%)</span>
+                  <span>${((amountCents * 0.35) / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-green-600 dark:text-green-400 border-t border-border/40 pt-2">
+                  <span>Tutor payout</span>
+                  <span className="font-semibold">
+                    ${((amountCents * 0.65) / 100).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Platform fee note */}
+            <p className="text-xs text-muted-foreground/60 mt-2 text-center">
+              ExamGuide retains 35% as a platform fee. The tutor receives the
+              remaining 65%.
+            </p>
+          </motion.div>
+        )}
 
         {/* Actions */}
         <motion.div
           className="flex flex-col sm:flex-row gap-3 justify-center"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45, duration: 0.4 }}
+          transition={{ delay: hasBreakdown ? 0.55 : 0.45, duration: 0.4 }}
         >
           <Button
             asChild

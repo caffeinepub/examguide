@@ -485,4 +485,76 @@ export function useAdminStatus() {
   });
 }
 
+// ── Platform Fee & Transactions ───────────────────────────────
+
+// Platform fee constant (matches backend)
+export const PLATFORM_FEE_PERCENT = 35;
+
+export interface TransactionRecord {
+  id: number;
+  student: Principal;
+  tutorName: string;
+  sessionType: string;
+  totalAmount: number;
+  platformFeeAmount: number;
+  platformFeePercent: number;
+  timestamp: bigint;
+}
+
+export function useGetMyTransactions() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["myTransactions"],
+    queryFn: async () => {
+      if (!actor) return [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (actor as any).getMyTransactions() as Promise<TransactionRecord[]>;
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGetAllTransactions() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["allTransactions"],
+    queryFn: async () => {
+      if (!actor) return [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (actor as any).getAllTransactions() as Promise<
+        TransactionRecord[]
+      >;
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useRecordTransaction() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      tutorName,
+      sessionType,
+      totalAmount,
+    }: {
+      tutorName: string;
+      sessionType: string;
+      totalAmount: number;
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (actor as any).recordTransaction(
+        tutorName,
+        sessionType,
+        totalAmount,
+      ) as Promise<TransactionRecord>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["myTransactions"] });
+      qc.invalidateQueries({ queryKey: ["allTransactions"] });
+    },
+  });
+}
+
 export { BookingStatus };

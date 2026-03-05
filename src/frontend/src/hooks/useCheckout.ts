@@ -13,13 +13,21 @@ export interface CheckoutItem {
   quantity: number;
 }
 
+export interface CreateCheckoutInput {
+  items: CheckoutItem[];
+  successUrlSuffix?: string;
+}
+
 export function useCreateCheckoutSession() {
   const { actor } = useActor();
   return useMutation({
-    mutationFn: async (items: CheckoutItem[]): Promise<CheckoutSession> => {
+    mutationFn: async ({
+      items,
+      successUrlSuffix,
+    }: CreateCheckoutInput): Promise<CheckoutSession> => {
       if (!actor) throw new Error("Actor not available");
       const baseUrl = `${window.location.protocol}//${window.location.host}`;
-      const successUrl = `${baseUrl}/payment-success`;
+      const successUrl = `${baseUrl}/payment-success${successUrlSuffix || ""}`;
       const cancelUrl = `${baseUrl}/payment-failure`;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await (actor as any).createCheckoutSession(

@@ -14,10 +14,10 @@ import OutCall "http-outcalls/outcall";
 import AccessControl "authorization/access-control";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
-import Migration "migration";
+
 
 // Apply migration data transformation
-(with migration = Migration.run)
+
 actor {
   /// PREFABRICATED COMPONENTS
   let accessControlState = AccessControl.initState();
