@@ -134,14 +134,28 @@ export function useCreateStudyNote() {
       content,
       subject,
       examCategoryId,
+      fileId = null,
+      fileName = null,
+      fileType = null,
     }: {
       title: string;
       content: string;
       subject: string;
       examCategoryId: number;
+      fileId?: string | null;
+      fileName?: string | null;
+      fileType?: string | null;
     }) => {
       if (!actor) throw new Error("Not connected");
-      return actor.createStudyNote(title, content, subject, examCategoryId);
+      return actor.createStudyNote(
+        title,
+        content,
+        subject,
+        examCategoryId,
+        fileId,
+        fileName,
+        fileType,
+      );
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["studyNotes"] }),
   });
@@ -156,14 +170,28 @@ export function useUpdateStudyNote() {
       title,
       content,
       subject,
+      fileId = null,
+      fileName = null,
+      fileType = null,
     }: {
       id: number;
       title: string;
       content: string;
       subject: string;
+      fileId?: string | null;
+      fileName?: string | null;
+      fileType?: string | null;
     }) => {
       if (!actor) throw new Error("Not connected");
-      return actor.updateStudyNote(id, title, content, subject);
+      return actor.updateStudyNote(
+        id,
+        title,
+        content,
+        subject,
+        fileId,
+        fileName,
+        fileType,
+      );
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["studyNotes"] }),
   });
@@ -359,7 +387,7 @@ export function useCreateUserProfile() {
       expertiseTags: string[];
     }) => {
       if (!actor) throw new Error("Not connected");
-      return actor.createUserProfile(displayName, bio, expertiseTags);
+      return actor.saveCallerUserProfile({ displayName, bio, expertiseTags });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["callerProfile"] }),
   });
@@ -440,7 +468,20 @@ export function useClaimAdminAccess() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["callerRole"] });
+      qc.invalidateQueries({ queryKey: ["adminStatus"] });
     },
+  });
+}
+
+export function useAdminStatus() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["adminStatus"],
+    queryFn: async () => {
+      if (!actor) return false;
+      return actor.getAdminStatus();
+    },
+    enabled: !!actor && !isFetching,
   });
 }
 

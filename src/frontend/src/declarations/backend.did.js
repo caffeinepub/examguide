@@ -8,6 +8,17 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const _CaffeineStorageCreateCertificateResult = IDL.Record({
+  'method' : IDL.Text,
+  'blob_hash' : IDL.Text,
+});
+export const _CaffeineStorageRefillInformation = IDL.Record({
+  'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+});
+export const _CaffeineStorageRefillResult = IDL.Record({
+  'success' : IDL.Opt(IDL.Bool),
+  'topped_up_amount' : IDL.Opt(IDL.Nat),
+});
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
@@ -40,7 +51,10 @@ export const StudyNote = IDL.Record({
   'content' : IDL.Text,
   'subject' : IDL.Text,
   'examCategoryId' : IDL.Nat32,
+  'fileName' : IDL.Opt(IDL.Text),
+  'fileType' : IDL.Opt(IDL.Text),
   'author' : IDL.Principal,
+  'fileId' : IDL.Opt(IDL.Text),
   'timestamp' : Time,
 });
 export const TutorMentorProfile = IDL.Record({
@@ -111,6 +125,32 @@ export const TransformationOutput = IDL.Record({
 });
 
 export const idlService = IDL.Service({
+  '_caffeineStorageBlobIsLive' : IDL.Func(
+      [IDL.Vec(IDL.Nat8)],
+      [IDL.Bool],
+      ['query'],
+    ),
+  '_caffeineStorageBlobsToDelete' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      ['query'],
+    ),
+  '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      [],
+      [],
+    ),
+  '_caffeineStorageCreateCertificate' : IDL.Func(
+      [IDL.Text],
+      [_CaffeineStorageCreateCertificateResult],
+      [],
+    ),
+  '_caffeineStorageRefillCashier' : IDL.Func(
+      [IDL.Opt(_CaffeineStorageRefillInformation)],
+      [_CaffeineStorageRefillResult],
+      [],
+    ),
+  '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addBookmark' : IDL.Func([IDL.Nat32], [], []),
   'addExamCategory' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat32], []),
@@ -133,7 +173,15 @@ export const idlService = IDL.Service({
       [],
     ),
   'createStudyNote' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Text, IDL.Nat32],
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Nat32,
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+      ],
       [IDL.Nat32],
       [],
     ),
@@ -150,13 +198,9 @@ export const idlService = IDL.Service({
       [IDL.Nat32],
       [],
     ),
-  'createUserProfile' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Vec(IDL.Text)],
-      [],
-      [],
-    ),
   'deleteGuidancePost' : IDL.Func([IDL.Nat32], [], []),
   'deleteStudyNote' : IDL.Func([IDL.Nat32], [], []),
+  'getAdminStatus' : IDL.Func([], [IDL.Bool], ['query']),
   'getAllExamCategories' : IDL.Func([], [IDL.Vec(ExamCategory)], ['query']),
   'getAllGuidancePosts' : IDL.Func([], [IDL.Vec(GuidancePost)], ['query']),
   'getAllStudyNotes' : IDL.Func([], [IDL.Vec(StudyNote)], ['query']),
@@ -193,7 +237,15 @@ export const idlService = IDL.Service({
   'updateBookingRequestStatus' : IDL.Func([IDL.Nat32, BookingStatus], [], []),
   'updateGuidancePost' : IDL.Func([IDL.Nat32, IDL.Text, IDL.Text], [], []),
   'updateStudyNote' : IDL.Func(
-      [IDL.Nat32, IDL.Text, IDL.Text, IDL.Text],
+      [
+        IDL.Nat32,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Text),
+      ],
       [],
       [],
     ),
@@ -202,6 +254,17 @@ export const idlService = IDL.Service({
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
+  const _CaffeineStorageCreateCertificateResult = IDL.Record({
+    'method' : IDL.Text,
+    'blob_hash' : IDL.Text,
+  });
+  const _CaffeineStorageRefillInformation = IDL.Record({
+    'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+  });
+  const _CaffeineStorageRefillResult = IDL.Record({
+    'success' : IDL.Opt(IDL.Bool),
+    'topped_up_amount' : IDL.Opt(IDL.Nat),
+  });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
@@ -234,7 +297,10 @@ export const idlFactory = ({ IDL }) => {
     'content' : IDL.Text,
     'subject' : IDL.Text,
     'examCategoryId' : IDL.Nat32,
+    'fileName' : IDL.Opt(IDL.Text),
+    'fileType' : IDL.Opt(IDL.Text),
     'author' : IDL.Principal,
+    'fileId' : IDL.Opt(IDL.Text),
     'timestamp' : Time,
   });
   const TutorMentorProfile = IDL.Record({
@@ -302,6 +368,32 @@ export const idlFactory = ({ IDL }) => {
   });
   
   return IDL.Service({
+    '_caffeineStorageBlobIsLive' : IDL.Func(
+        [IDL.Vec(IDL.Nat8)],
+        [IDL.Bool],
+        ['query'],
+      ),
+    '_caffeineStorageBlobsToDelete' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        ['query'],
+      ),
+    '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [],
+        [],
+      ),
+    '_caffeineStorageCreateCertificate' : IDL.Func(
+        [IDL.Text],
+        [_CaffeineStorageCreateCertificateResult],
+        [],
+      ),
+    '_caffeineStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(_CaffeineStorageRefillInformation)],
+        [_CaffeineStorageRefillResult],
+        [],
+      ),
+    '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addBookmark' : IDL.Func([IDL.Nat32], [], []),
     'addExamCategory' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat32], []),
@@ -328,7 +420,15 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'createStudyNote' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Text, IDL.Nat32],
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat32,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+        ],
         [IDL.Nat32],
         [],
       ),
@@ -345,13 +445,9 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat32],
         [],
       ),
-    'createUserProfile' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Vec(IDL.Text)],
-        [],
-        [],
-      ),
     'deleteGuidancePost' : IDL.Func([IDL.Nat32], [], []),
     'deleteStudyNote' : IDL.Func([IDL.Nat32], [], []),
+    'getAdminStatus' : IDL.Func([], [IDL.Bool], ['query']),
     'getAllExamCategories' : IDL.Func([], [IDL.Vec(ExamCategory)], ['query']),
     'getAllGuidancePosts' : IDL.Func([], [IDL.Vec(GuidancePost)], ['query']),
     'getAllStudyNotes' : IDL.Func([], [IDL.Vec(StudyNote)], ['query']),
@@ -392,7 +488,15 @@ export const idlFactory = ({ IDL }) => {
     'updateBookingRequestStatus' : IDL.Func([IDL.Nat32, BookingStatus], [], []),
     'updateGuidancePost' : IDL.Func([IDL.Nat32, IDL.Text, IDL.Text], [], []),
     'updateStudyNote' : IDL.Func(
-        [IDL.Nat32, IDL.Text, IDL.Text, IDL.Text],
+        [
+          IDL.Nat32,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+        ],
         [],
         [],
       ),

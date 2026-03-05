@@ -1,22 +1,34 @@
 # ExamGuide
 
 ## Current State
-Full-stack app with Motoko backend and React frontend. Features: exam categories, study notes, guidance posts, tutor/mentor profiles, booking requests, reviews, bookmarks, user profiles, Stripe payments, and an admin page.
-
-The admin claim flow uses `_initializeAccessControlWithSecret("")` which fails once `adminAssigned` is `true` (i.e., any user has registered). This means the owner cannot claim admin if other users registered first.
+Full-stack app with Motoko backend and React frontend. Features: exam categories, study notes (text/markdown only), guidance posts, tutor/mentor profiles, booking requests, reviews, bookmarks, user profiles, Stripe payments, and an admin dashboard. Notes are currently text/markdown only — no file upload capability.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: `claimInitialAdmin()` -- a one-time function that directly assigns the `#admin` role to the caller if `adminAssigned` is false. No token required. Traps if admin is already assigned or caller is anonymous.
-- Backend: expose `claimInitialAdmin` in backend.d.ts
+- **Backend**: `blob-storage` component for scalable file uploads (PDF, JPG, PNG, DOCX, etc.)
+- **Backend**: `fileId` optional field on `StudyNote` to link an uploaded file
+- **Backend**: `fileName` and `fileType` optional fields on `StudyNote` for display metadata
+- **Frontend**: File upload UI in the "Add Note" and "Edit Note" dialogs — drag-and-drop zone plus file picker supporting any file type
+- **Frontend**: Uploaded file preview/download link on the note view dialog (shows file name, type icon, and download button for PDF/DOC; inline image preview for JPG/PNG)
+- **Frontend**: Notes with attached files show a file badge/indicator on the note card
 
 ### Modify
-- Frontend `useClaimAdminAccess` hook: call `actor.claimInitialAdmin()` instead of `actor._initializeAccessControlWithSecret("")`
+- **Backend**: `createStudyNote` accepts optional `fileId`, `fileName`, `fileType` parameters
+- **Backend**: `updateStudyNote` accepts optional `fileId`, `fileName`, `fileType` parameters
+- **Frontend**: Note creation form — add optional file upload section below the content textarea
+- **Frontend**: Note card — show a file attachment badge when a file is attached
+- **Frontend**: Note view dialog — show file attachment section with download/preview
 
 ### Remove
-- Nothing removed
+- Nothing removed; text notes continue to work as before (file upload is optional)
 
 ## Implementation Plan
-1. Regenerate Motoko backend with `claimInitialAdmin()` function added alongside all existing functions
-2. Update frontend `useClaimAdminAccess` hook to call `claimInitialAdmin`
+1. Select `blob-storage` component
+2. Regenerate Motoko backend to add optional `fileId`, `fileName`, `fileType` fields to `StudyNote`, and update `createStudyNote`/`updateStudyNote` accordingly
+3. Update frontend `NotesPage.tsx`:
+   - Add file upload dropzone/picker in the note creation and edit forms
+   - Upload file via blob-storage hook before submitting note, store returned fileId
+   - Show file badge on note cards that have an attached file
+   - In view dialog, render inline image preview (if image) or a download link (PDF/other)
+4. Wire blob-storage upload/download URLs into the note display components

@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddExamCategory,
+  useAdminStatus,
   useCallerRole,
   useClaimAdminAccess,
   useExamCategories,
@@ -129,6 +130,8 @@ export default function AdminPage() {
 
   const { data: role, isLoading: roleLoading } = useCallerRole();
   const isAdmin = role === "admin";
+
+  const { data: adminAlreadyAssigned } = useAdminStatus();
 
   const { data: notes, isLoading: notesLoading } = useStudyNotes();
   const { data: posts, isLoading: postsLoading } = useGuidancePosts();
@@ -248,12 +251,36 @@ export default function AdminPage() {
                   Admin
                 </Badge>
               </motion.div>
+            ) : adminAlreadyAssigned ? (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-6 rounded-2xl bg-card border border-destructive/30 shadow-sm"
+                data-ocid="admin.access.error_state"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-destructive/10 border border-destructive/25 flex items-center justify-center shrink-0">
+                    <Shield className="w-5 h-5 text-destructive" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-display font-bold text-foreground text-base mb-1">
+                      Admin Already Assigned
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Admin access has already been claimed by another account.
+                      If you are the app owner, make sure you are logged in with
+                      the correct Internet Identity account that first signed
+                      in.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
             ) : (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="p-6 rounded-2xl bg-card border border-primary/30 shadow-sm"
-                data-ocid="admin.access.error_state"
+                data-ocid="admin.claim.panel"
               >
                 <div className="flex items-start gap-4">
                   <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
@@ -264,8 +291,8 @@ export default function AdminPage() {
                       Claim Admin Access
                     </h3>
                     <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                      If you are the app owner, click the button below to claim
-                      admin access. This can only be done once.
+                      No admin has been assigned yet. Click below to claim admin
+                      access for your account.
                     </p>
                     <Button
                       onClick={async () => {
@@ -289,9 +316,6 @@ export default function AdminPage() {
                       )}
                       Claim Admin Access
                     </Button>
-                    <p className="text-xs text-muted-foreground mt-3">
-                      Already an admin? Try refreshing the page.
-                    </p>
                   </div>
                 </div>
               </motion.div>

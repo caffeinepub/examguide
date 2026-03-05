@@ -63,7 +63,10 @@ export interface StudyNote {
   'content' : string,
   'subject' : string,
   'examCategoryId' : number,
+  'fileName' : [] | [string],
+  'fileType' : [] | [string],
   'author' : Principal,
+  'fileId' : [] | [string],
   'timestamp' : Time,
 }
 export interface T {
@@ -95,6 +98,17 @@ export interface TutorMentorProfile {
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface _CaffeineStorageCreateCertificateResult {
+  'method' : string,
+  'blob_hash' : string,
+}
+export interface _CaffeineStorageRefillInformation {
+  'proposed_top_up_amount' : [] | [bigint],
+}
+export interface _CaffeineStorageRefillResult {
+  'success' : [] | [boolean],
+  'topped_up_amount' : [] | [bigint],
+}
 export interface http_header { 'value' : string, 'name' : string }
 export interface http_request_result {
   'status' : bigint,
@@ -102,6 +116,21 @@ export interface http_request_result {
   'headers' : Array<http_header>,
 }
 export interface _SERVICE {
+  '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
+  '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
+  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<
+    [Array<Uint8Array>],
+    undefined
+  >,
+  '_caffeineStorageCreateCertificate' : ActorMethod<
+    [string],
+    _CaffeineStorageCreateCertificateResult
+  >,
+  '_caffeineStorageRefillCashier' : ActorMethod<
+    [[] | [_CaffeineStorageRefillInformation]],
+    _CaffeineStorageRefillResult
+  >,
+  '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addBookmark' : ActorMethod<[number], undefined>,
   'addExamCategory' : ActorMethod<[string, string], number>,
@@ -114,7 +143,18 @@ export interface _SERVICE {
   >,
   'createGuidancePost' : ActorMethod<[string, string, number], number>,
   'createReview' : ActorMethod<[Principal, number, string], number>,
-  'createStudyNote' : ActorMethod<[string, string, string, number], number>,
+  'createStudyNote' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      number,
+      [] | [string],
+      [] | [string],
+      [] | [string],
+    ],
+    number
+  >,
   'createTutorMentorProfile' : ActorMethod<
     [
       string,
@@ -127,9 +167,9 @@ export interface _SERVICE {
     ],
     number
   >,
-  'createUserProfile' : ActorMethod<[string, string, Array<string>], undefined>,
   'deleteGuidancePost' : ActorMethod<[number], undefined>,
   'deleteStudyNote' : ActorMethod<[number], undefined>,
+  'getAdminStatus' : ActorMethod<[], boolean>,
   'getAllExamCategories' : ActorMethod<[], Array<ExamCategory>>,
   'getAllGuidancePosts' : ActorMethod<[], Array<GuidancePost>>,
   'getAllStudyNotes' : ActorMethod<[], Array<StudyNote>>,
@@ -140,9 +180,6 @@ export interface _SERVICE {
   >,
   'getBookmarks' : ActorMethod<[Principal], Uint32Array>,
   'getCallerUserProfile' : ActorMethod<[], [] | [T]>,
-  /**
-   * / COMPONENTS
-   */
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getReviewsForTutor' : ActorMethod<[Principal], Array<Review>>,
   'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
@@ -153,7 +190,7 @@ export interface _SERVICE {
   'searchNotesByTitle' : ActorMethod<[string], Array<StudyNote>>,
   'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
   /**
-   * / TRANSFORM CALLBACK REQUIRED FOR OUTCALLS TO STRIPE
+   * / TRANSFORM CALLBACK REQUIRED FOR HTTP OUTCALLS (e.g. Stripe)
    */
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
   'updateBookingRequestStatus' : ActorMethod<
@@ -161,7 +198,18 @@ export interface _SERVICE {
     undefined
   >,
   'updateGuidancePost' : ActorMethod<[number, string, string], undefined>,
-  'updateStudyNote' : ActorMethod<[number, string, string, string], undefined>,
+  'updateStudyNote' : ActorMethod<
+    [
+      number,
+      string,
+      string,
+      string,
+      [] | [string],
+      [] | [string],
+      [] | [string],
+    ],
+    undefined
+  >,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

@@ -18,6 +18,14 @@ export interface TutorMentorProfile {
     exams: Uint32Array;
     availability: string;
 }
+export interface GuidancePost {
+    id: number;
+    title: string;
+    examCategoryId: number;
+    body: string;
+    author: Principal;
+    timestamp: Time;
+}
 export interface TransformationOutput {
     status: bigint;
     body: Uint8Array;
@@ -84,7 +92,10 @@ export interface StudyNote {
     content: string;
     subject: string;
     examCategoryId: number;
+    fileName?: string;
+    fileType?: string;
     author: Principal;
+    fileId?: string;
     timestamp: Time;
 }
 export interface Review {
@@ -94,14 +105,6 @@ export interface Review {
     author: Principal;
     timestamp: Time;
     rating: number;
-}
-export interface GuidancePost {
-    id: number;
-    title: string;
-    examCategoryId: number;
-    body: string;
-    author: Principal;
-    timestamp: Time;
 }
 export enum BookingStatus {
     pending = "pending",
@@ -122,11 +125,11 @@ export interface backendInterface {
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     createGuidancePost(title: string, body: string, examCategoryId: number): Promise<number>;
     createReview(tutor: Principal, rating: number, text: string): Promise<number>;
-    createStudyNote(title: string, content: string, subject: string, examCategoryId: number): Promise<number>;
+    createStudyNote(title: string, content: string, subject: string, examCategoryId: number, fileId: string | null, fileName: string | null, fileType: string | null): Promise<number>;
     createTutorMentorProfile(name: string, subjects: Array<string>, exams: Uint32Array, availability: string, hourlyRate: number | null, bio: string, isMentor: boolean): Promise<number>;
-    createUserProfile(displayName: string, bio: string, expertiseTags: Array<string>): Promise<void>;
     deleteGuidancePost(id: number): Promise<void>;
     deleteStudyNote(id: number): Promise<void>;
+    getAdminStatus(): Promise<boolean>;
     getAllExamCategories(): Promise<Array<ExamCategory>>;
     getAllGuidancePosts(): Promise<Array<GuidancePost>>;
     getAllStudyNotes(): Promise<Array<StudyNote>>;
@@ -134,9 +137,6 @@ export interface backendInterface {
     getBookingRequestsForTutor(tutor: Principal): Promise<Array<BookingRequest>>;
     getBookmarks(user: Principal): Promise<Uint32Array>;
     getCallerUserProfile(): Promise<T | null>;
-    /**
-     * / COMPONENTS
-     */
     getCallerUserRole(): Promise<UserRole>;
     getReviewsForTutor(tutor: Principal): Promise<Array<Review>>;
     getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
@@ -147,10 +147,10 @@ export interface backendInterface {
     searchNotesByTitle(queryText: string): Promise<Array<StudyNote>>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
     /**
-     * / TRANSFORM CALLBACK REQUIRED FOR OUTCALLS TO STRIPE
+     * / TRANSFORM CALLBACK REQUIRED FOR HTTP OUTCALLS (e.g. Stripe)
      */
     transform(input: TransformationInput): Promise<TransformationOutput>;
     updateBookingRequestStatus(id: number, status: BookingStatus): Promise<void>;
     updateGuidancePost(id: number, title: string, body: string): Promise<void>;
-    updateStudyNote(id: number, title: string, content: string, subject: string): Promise<void>;
+    updateStudyNote(id: number, title: string, content: string, subject: string, fileId: string | null, fileName: string | null, fileType: string | null): Promise<void>;
 }

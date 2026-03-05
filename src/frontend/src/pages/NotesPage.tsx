@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -22,16 +23,20 @@ import { cn } from "@/lib/utils";
 import {
   BookOpen,
   Clock,
+  Download,
   Edit,
   FileText,
   Loader2,
+  Paperclip,
   Plus,
   Search,
   Trash2,
+  Upload,
   User,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { StudyNote } from "../backend.d";
 import { SAMPLE_EXAM_CATEGORIES, formatTimestamp } from "../data/sampleData";
@@ -44,7 +49,260 @@ import {
   useStudyNotes,
   useUpdateStudyNote,
 } from "../hooks/useQueries";
+import { useStorageUpload } from "../hooks/useStorageUpload";
 
+// ─── File size formatter ───────────────────────────────────────────────────────
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ─── File type icon/label helper ──────────────────────────────────────────────
+function getFileLabel(fileType: string, fileName: string): string {
+  if (fileType.startsWith("image/")) return "Image";
+  if (fileType === "application/pdf") return "PDF";
+  if (
+    fileType.includes("word") ||
+    fileName.endsWith(".docx") ||
+    fileName.endsWith(".doc")
+  )
+    return "Document";
+  if (
+    fileType.includes("presentation") ||
+    fileName.endsWith(".pptx") ||
+    fileName.endsWith(".ppt")
+  )
+    return "Slides";
+  if (
+    fileType.includes("spreadsheet") ||
+    fileName.endsWith(".xlsx") ||
+    fileName.endsWith(".xls")
+  )
+    return "Spreadsheet";
+  return "File";
+}
+
+// ─── File Upload Zone Component ───────────────────────────────────────────────
+interface FileUploadZoneProps {
+  selectedFile: File | null;
+  onFileSelect: (file: File | null) => void;
+  existingFileName?: string;
+  onRemoveExisting?: () => void;
+  uploadProgress: number;
+  isUploading: boolean;
+  uploadError: string | null;
+  disabled?: boolean;
+}
+
+function FileUploadZone({
+  selectedFile,
+  onFileSelect,
+  existingFileName,
+  onRemoveExisting,
+  uploadProgress,
+  isUploading,
+  uploadError,
+  disabled,
+}: FileUploadZoneProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file) onFileSelect(file);
+    },
+    [onFileSelect],
+  );
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0] ?? null;
+      onFileSelect(file);
+      // reset input so same file can be re-selected
+      e.target.value = "";
+    },
+    [onFileSelect],
+  );
+
+  // Show existing attachment (not being replaced yet)
+  if (existingFileName && !selectedFile) {
+    return (
+      <div className="rounded-xl border border-border/60 bg-surface-2 p-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+            <Paperclip className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">
+              {existingFileName}
+            </p>
+            <p className="text-xs text-muted-foreground">Current attachment</p>
+          </div>
+          <div className="flex gap-1.5 shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-border/60 gap-1"
+              onClick={() => inputRef.current?.click()}
+              disabled={disabled}
+              data-ocid="notes.upload_button"
+            >
+              <Upload className="w-3 h-3" />
+              Replace
+            </Button>
+            {onRemoveExisting && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={onRemoveExisting}
+                disabled={disabled}
+                aria-label="Remove attachment"
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="*/*"
+          className="hidden"
+          onChange={handleFileChange}
+          disabled={disabled}
+        />
+      </div>
+    );
+  }
+
+  // Show selected file (pending upload or uploading)
+  if (selectedFile) {
+    return (
+      <div
+        className="rounded-xl border border-primary/30 bg-primary/5 p-3"
+        data-ocid="notes.file.loading_state"
+      >
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">
+              {selectedFile.name}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {formatFileSize(selectedFile.size)} ·{" "}
+              {getFileLabel(selectedFile.type, selectedFile.name)}
+            </p>
+          </div>
+          {!isUploading && (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+              onClick={() => onFileSelect(null)}
+              disabled={disabled}
+              aria-label="Remove selected file"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          )}
+        </div>
+        {isUploading && (
+          <div className="space-y-1">
+            <Progress value={uploadProgress} className="h-1.5" />
+            <p className="text-xs text-muted-foreground text-right">
+              {uploadProgress}%
+            </p>
+          </div>
+        )}
+        {uploadError && (
+          <p className="text-xs text-destructive mt-1">{uploadError}</p>
+        )}
+      </div>
+    );
+  }
+
+  // Empty dropzone
+  return (
+    <div>
+      <button
+        type="button"
+        className={cn(
+          "w-full rounded-xl border-2 border-dashed transition-colors cursor-pointer p-5 text-center",
+          isDragging
+            ? "border-primary/60 bg-primary/8"
+            : "border-border/50 bg-surface-2 hover:border-primary/40 hover:bg-primary/5",
+          disabled && "opacity-50 pointer-events-none",
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => !disabled && inputRef.current?.click()}
+        data-ocid="notes.dropzone"
+        disabled={disabled}
+        aria-label="Upload file — click or drag and drop"
+      >
+        <div className="flex flex-col items-center gap-2 pointer-events-none">
+          <div className="w-10 h-10 rounded-full bg-muted/50 border border-border/60 flex items-center justify-center">
+            <Upload className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Drop file here or{" "}
+              <span className="text-primary underline underline-offset-2">
+                browse
+              </span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              PDF, images, Word, PowerPoint, and more — any format
+            </p>
+          </div>
+        </div>
+      </button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="mt-2 h-7 text-xs border-border/60 gap-1.5 w-full"
+        onClick={() => inputRef.current?.click()}
+        disabled={disabled}
+        data-ocid="notes.upload_button"
+      >
+        <Upload className="w-3 h-3" />
+        Browse files
+      </Button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="*/*"
+        className="hidden"
+        onChange={handleFileChange}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
+// ─── Note Card ────────────────────────────────────────────────────────────────
 function NoteCard({
   note,
   categoryName,
@@ -75,12 +333,26 @@ function NoteCard({
         onClick={onView}
       >
         <div className="flex items-start justify-between gap-2 mb-3">
-          <Badge
-            variant="outline"
-            className="text-xs border-teal/30 bg-teal/10 text-teal shrink-0"
-          >
-            {categoryName}
-          </Badge>
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            <Badge
+              variant="outline"
+              className="text-xs border-teal/30 bg-teal/10 text-teal shrink-0"
+            >
+              {categoryName}
+            </Badge>
+            {note.fileId && (
+              <Badge
+                variant="outline"
+                className="text-xs border-primary/30 bg-primary/8 text-primary shrink-0 gap-1"
+                title={note.fileName ?? "Attachment"}
+              >
+                <Paperclip className="w-2.5 h-2.5" />
+                {note.fileName
+                  ? getFileLabel(note.fileType ?? "", note.fileName)
+                  : "File"}
+              </Badge>
+            )}
+          </div>
           {isOwn && (
             <div
               className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -131,6 +403,7 @@ function NoteCard({
   );
 }
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function NotesPage() {
   const { identity } = useInternetIdentity();
   const isLoggedIn = !!identity && !identity.getPrincipal().isAnonymous();
@@ -143,11 +416,22 @@ export default function NotesPage() {
   const [editNote, setEditNote] = useState<StudyNote | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
-  // Form state
+  // Text form state
   const [formTitle, setFormTitle] = useState("");
   const [formContent, setFormContent] = useState("");
   const [formSubject, setFormSubject] = useState("");
   const [formCategoryId, setFormCategoryId] = useState<string>("");
+
+  // File state for create form
+  const [createFile, setCreateFile] = useState<File | null>(null);
+
+  // File state for edit form
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [editRemoveFile, setEditRemoveFile] = useState(false);
+
+  // Storage upload hooks (one per dialog to keep progress isolated)
+  const createUpload = useStorageUpload();
+  const editUpload = useStorageUpload();
 
   const { data: backendNotes, isLoading: notesLoading } = useStudyNotes();
   const { data: searchResults } = useSearchNotes(debouncedSearch);
@@ -188,6 +472,8 @@ export default function NotesPage() {
     setFormContent("");
     setFormSubject("");
     setFormCategoryId("");
+    setCreateFile(null);
+    createUpload.resetUpload();
     setCreateOpen(true);
   };
 
@@ -197,19 +483,42 @@ export default function NotesPage() {
     setFormContent(note.content);
     setFormSubject(note.subject);
     setFormCategoryId(String(note.examCategoryId));
+    setEditFile(null);
+    setEditRemoveFile(false);
+    editUpload.resetUpload();
   };
 
   const handleCreate = async () => {
     if (!formTitle || !formContent || !formSubject || !formCategoryId) {
-      toast.error("Please fill all fields");
+      toast.error("Please fill all required fields");
       return;
     }
+
+    let fileId: string | null = null;
+    let fileName: string | null = null;
+    let fileType: string | null = null;
+
+    if (createFile) {
+      try {
+        const uploaded = await createUpload.uploadFile(createFile);
+        fileId = uploaded.fileId;
+        fileName = uploaded.fileName;
+        fileType = uploaded.fileType;
+      } catch {
+        toast.error("File upload failed — please try again");
+        return;
+      }
+    }
+
     try {
       await createNote.mutateAsync({
         title: formTitle,
         content: formContent,
         subject: formSubject,
         examCategoryId: Number(formCategoryId),
+        fileId,
+        fileName,
+        fileType,
       });
       toast.success("Note created!");
       setCreateOpen(false);
@@ -220,12 +529,38 @@ export default function NotesPage() {
 
   const handleUpdate = async () => {
     if (!editNote || !formTitle || !formContent || !formSubject) return;
+
+    let fileId: string | null = editRemoveFile
+      ? null
+      : (editNote.fileId ?? null);
+    let fileName: string | null = editRemoveFile
+      ? null
+      : (editNote.fileName ?? null);
+    let fileType: string | null = editRemoveFile
+      ? null
+      : (editNote.fileType ?? null);
+
+    if (editFile) {
+      try {
+        const uploaded = await editUpload.uploadFile(editFile);
+        fileId = uploaded.fileId;
+        fileName = uploaded.fileName;
+        fileType = uploaded.fileType;
+      } catch {
+        toast.error("File upload failed — please try again");
+        return;
+      }
+    }
+
     try {
       await updateNote.mutateAsync({
         id: editNote.id,
         title: formTitle,
         content: formContent,
         subject: formSubject,
+        fileId,
+        fileName,
+        fileType,
       });
       toast.success("Note updated!");
       setEditNote(null);
@@ -252,14 +587,31 @@ export default function NotesPage() {
     }
   };
 
+  const isCreateLoading = createNote.isPending || createUpload.isUploading;
+  const isUpdateLoading = updateNote.isPending || editUpload.isUploading;
+
   const NoteForm = ({
     onSubmit,
     loading,
     submitLabel,
+    file,
+    onFileSelect,
+    existingFileName,
+    onRemoveExisting,
+    uploadProgress,
+    isUploading,
+    uploadError,
   }: {
     onSubmit: () => void;
     loading: boolean;
     submitLabel: string;
+    file: File | null;
+    onFileSelect: (f: File | null) => void;
+    existingFileName?: string;
+    onRemoveExisting?: () => void;
+    uploadProgress: number;
+    isUploading: boolean;
+    uploadError: string | null;
   }) => (
     <div className="space-y-4 mt-2">
       <div>
@@ -276,6 +628,7 @@ export default function NotesPage() {
           placeholder="e.g. SAT Math — Quadratic Equations"
           data-ocid="notes.input"
           className="bg-surface-2 border-border/60"
+          disabled={loading}
         />
       </div>
       <div>
@@ -291,6 +644,7 @@ export default function NotesPage() {
           onChange={(e) => setFormSubject(e.target.value)}
           placeholder="e.g. Mathematics, Verbal, Physics"
           className="bg-surface-2 border-border/60"
+          disabled={loading}
         />
       </div>
       <div>
@@ -300,7 +654,11 @@ export default function NotesPage() {
         >
           Exam Category
         </Label>
-        <Select value={formCategoryId} onValueChange={setFormCategoryId}>
+        <Select
+          value={formCategoryId}
+          onValueChange={setFormCategoryId}
+          disabled={loading}
+        >
           <SelectTrigger
             data-ocid="notes.select"
             className="bg-surface-2 border-border/60"
@@ -321,18 +679,41 @@ export default function NotesPage() {
           htmlFor="note-content"
           className="text-sm font-medium text-foreground mb-1.5 block"
         >
-          Content (Markdown supported)
+          Content{" "}
+          <span className="text-muted-foreground font-normal">
+            (optional, Markdown supported)
+          </span>
         </Label>
         <Textarea
           id="note-content"
           value={formContent}
           onChange={(e) => setFormContent(e.target.value)}
           placeholder="Write your study notes here... Use markdown for formatting."
-          rows={8}
+          rows={6}
           data-ocid="notes.textarea"
           className="bg-surface-2 border-border/60 font-mono text-sm"
+          disabled={loading}
         />
       </div>
+
+      {/* File attachment */}
+      <div>
+        <Label className="text-sm font-medium text-foreground mb-1.5 block">
+          Attachment{" "}
+          <span className="text-muted-foreground font-normal">(optional)</span>
+        </Label>
+        <FileUploadZone
+          selectedFile={file}
+          onFileSelect={onFileSelect}
+          existingFileName={existingFileName}
+          onRemoveExisting={onRemoveExisting}
+          uploadProgress={uploadProgress}
+          isUploading={isUploading}
+          uploadError={uploadError}
+          disabled={loading}
+        />
+      </div>
+
       <div className="flex gap-3 pt-2">
         <Button
           onClick={onSubmit}
@@ -341,7 +722,7 @@ export default function NotesPage() {
           data-ocid="notes.submit_button"
         >
           {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-          {submitLabel}
+          {isUploading ? `Uploading... ${uploadProgress}%` : submitLabel}
         </Button>
       </div>
     </div>
@@ -479,14 +860,14 @@ export default function NotesPage() {
         )}
       </div>
 
-      {/* View Note Dialog */}
+      {/* ── View Note Dialog ── */}
       <Dialog open={!!viewNote} onOpenChange={(o) => !o && setViewNote(null)}>
         <DialogContent
-          className="max-w-2xl bg-card border-border/60 max-h-[80vh] overflow-y-auto"
+          className="max-w-2xl bg-card border-border/60 max-h-[85vh] overflow-y-auto"
           data-ocid="notes.dialog"
         >
           <DialogHeader>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <Badge
                 variant="outline"
                 className="text-xs border-teal/30 bg-teal/10 text-teal"
@@ -496,6 +877,15 @@ export default function NotesPage() {
               {viewNote && (
                 <Badge variant="outline" className="text-xs">
                   {viewNote.subject}
+                </Badge>
+              )}
+              {viewNote?.fileId && viewNote.fileName && (
+                <Badge
+                  variant="outline"
+                  className="text-xs border-primary/30 bg-primary/8 text-primary gap-1"
+                >
+                  <Paperclip className="w-2.5 h-2.5" />
+                  {getFileLabel(viewNote.fileType ?? "", viewNote.fileName)}
                 </Badge>
               )}
             </div>
@@ -513,11 +903,87 @@ export default function NotesPage() {
               </span>
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-4 prose prose-sm prose-invert max-w-none">
-            <pre className="whitespace-pre-wrap font-body text-sm text-foreground/90 leading-relaxed bg-surface-2 rounded-lg p-4 border border-border/50">
-              {viewNote?.content}
-            </pre>
-          </div>
+
+          {/* Note content */}
+          {viewNote?.content && (
+            <div className="mt-4 prose prose-sm prose-invert max-w-none">
+              <pre className="whitespace-pre-wrap font-body text-sm text-foreground/90 leading-relaxed bg-surface-2 rounded-lg p-4 border border-border/50">
+                {viewNote.content}
+              </pre>
+            </div>
+          )}
+
+          {/* File attachment section */}
+          {viewNote?.fileId && (
+            <div className="mt-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Attachment
+              </p>
+              {viewNote.fileType?.startsWith("image/") ? (
+                <div className="rounded-xl overflow-hidden border border-border/60 bg-surface-2">
+                  <img
+                    src={viewNote.fileId}
+                    alt={viewNote.fileName ?? "Attached image"}
+                    className="w-full max-h-80 object-contain"
+                    loading="lazy"
+                  />
+                  {viewNote.fileName && (
+                    <div className="px-4 py-2 border-t border-border/50 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground truncate">
+                        {viewNote.fileName}
+                      </span>
+                      <a
+                        href={viewNote.fileId}
+                        download={viewNote.fileName}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary text-xs hover:underline flex items-center gap-1 shrink-0 ml-2"
+                      >
+                        <Download className="w-3 h-3" />
+                        Download
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-surface-2 border border-border/60">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {viewNote.fileName ?? "Attached file"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {viewNote.fileType
+                        ? getFileLabel(
+                            viewNote.fileType,
+                            viewNote.fileName ?? "",
+                          )
+                        : "File"}
+                    </p>
+                  </div>
+                  <a
+                    href={viewNote.fileId}
+                    download={viewNote.fileName ?? true}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+                      data-ocid="notes.download.button"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download
+                    </Button>
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-end mt-4">
             <Button
               variant="outline"
@@ -531,10 +997,10 @@ export default function NotesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Note Dialog */}
+      {/* ── Create Note Dialog ── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent
-          className="max-w-lg bg-card border-border/60"
+          className="max-w-lg bg-card border-border/60 max-h-[90vh] overflow-y-auto"
           data-ocid="notes.modal"
         >
           <DialogHeader>
@@ -542,21 +1008,27 @@ export default function NotesPage() {
               Create Study Note
             </DialogTitle>
             <DialogDescription className="text-muted-foreground text-sm">
-              Share your knowledge with students worldwide
+              Share your knowledge — add text notes and attach any file (PDF,
+              images, Word, etc.)
             </DialogDescription>
           </DialogHeader>
           <NoteForm
             onSubmit={handleCreate}
-            loading={createNote.isPending}
+            loading={isCreateLoading}
             submitLabel="Create Note"
+            file={createFile}
+            onFileSelect={setCreateFile}
+            uploadProgress={createUpload.uploadProgress}
+            isUploading={createUpload.isUploading}
+            uploadError={createUpload.uploadError}
           />
         </DialogContent>
       </Dialog>
 
-      {/* Edit Note Dialog */}
+      {/* ── Edit Note Dialog ── */}
       <Dialog open={!!editNote} onOpenChange={(o) => !o && setEditNote(null)}>
         <DialogContent
-          className="max-w-lg bg-card border-border/60"
+          className="max-w-lg bg-card border-border/60 max-h-[90vh] overflow-y-auto"
           data-ocid="notes.edit.dialog"
         >
           <DialogHeader>
@@ -564,13 +1036,24 @@ export default function NotesPage() {
               Edit Study Note
             </DialogTitle>
             <DialogDescription className="text-muted-foreground text-sm">
-              Update your note content
+              Update your note content or replace the attached file
             </DialogDescription>
           </DialogHeader>
           <NoteForm
             onSubmit={handleUpdate}
-            loading={updateNote.isPending}
+            loading={isUpdateLoading}
             submitLabel="Save Changes"
+            file={editFile}
+            onFileSelect={setEditFile}
+            existingFileName={
+              !editRemoveFile && !editFile && editNote?.fileId
+                ? (editNote.fileName ?? "Attached file")
+                : undefined
+            }
+            onRemoveExisting={() => setEditRemoveFile(true)}
+            uploadProgress={editUpload.uploadProgress}
+            isUploading={editUpload.isUploading}
+            uploadError={editUpload.uploadError}
           />
         </DialogContent>
       </Dialog>

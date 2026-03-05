@@ -4,21 +4,28 @@ import Map "mo:core/Map";
 import Nat32 "mo:core/Nat32";
 import Time "mo:core/Time";
 import Array "mo:core/Array";
+import Principal "mo:core/Principal";
 import Order "mo:core/Order";
 import Iter "mo:core/Iter";
 import Text "mo:core/Text";
-import Principal "mo:core/Principal";
-import MixinAuthorization "authorization/MixinAuthorization";
-import AccessControl "authorization/access-control";
 import Stripe "stripe/stripe";
+import MixinAuthorization "authorization/MixinAuthorization";
 import OutCall "http-outcalls/outcall";
+import AccessControl "authorization/access-control";
+import Storage "blob-storage/Storage";
+import MixinStorage "blob-storage/Mixin";
+import Migration "migration";
 
+// Apply migration data transformation
+(with migration = Migration.run)
 actor {
-  /// COMPONENTS
+  /// PREFABRICATED COMPONENTS
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  // Type definitions
+  include MixinStorage();
+
+  // Type Definitions
   module ExamCategory {
     public type T = {
       id : Nat32;
@@ -39,6 +46,9 @@ actor {
       examCategoryId : Nat32;
       author : Principal;
       timestamp : Time.Time;
+      fileId : ?Text;
+      fileName : ?Text;
+      fileType : ?Text;
     };
     public func compare(a : T, b : T) : Order.Order {
       Nat32.compare(a.id, b.id);
@@ -129,7 +139,7 @@ actor {
   let bookmarks = Map.empty<Principal, List.List<Nat32>>();
   let userProfiles = Map.empty<Principal, UserProfile.T>();
 
-  // ID generators
+  // ID Generation
   var nextExamCategoryId = 1;
   var nextNoteId = 1;
   var nextPostId = 1;
@@ -137,10 +147,7 @@ actor {
   var nextBookingId = 1;
   var nextReviewId = 1;
 
-  // Admin assignment tracking
-  var adminAssigned = false;
-
-  // Type aliases
+  // Type Aliases
   public type Profile = UserProfile.T;
   public type ExamCategory = ExamCategory.T;
   public type StudyNote = StudyNote.T;
@@ -149,10 +156,10 @@ actor {
   public type BookingRequest = BookingRequest.T;
   public type Review = Review.T;
 
-  // Stripe integration
+  // Stripe Configuration
   var configuration : ?Stripe.StripeConfiguration = null;
 
-  /// TRANSFORM CALLBACK REQUIRED FOR OUTCALLS TO STRIPE
+  /// TRANSFORM CALLBACK REQUIRED FOR HTTP OUTCALLS (e.g. Stripe)
   public query ({ caller }) func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
     OutCall.transform(input);
   };
@@ -231,7 +238,15 @@ actor {
   };
 
   // Study Notes
-  public shared ({ caller }) func createStudyNote(title : Text, content : Text, subject : Text, examCategoryId : Nat32) : async Nat32 {
+  public shared ({ caller }) func createStudyNote(
+    title : Text,
+    content : Text,
+    subject : Text,
+    examCategoryId : Nat32,
+    fileId : ?Text,
+    fileName : ?Text,
+    fileType : ?Text
+  ) : async Nat32 {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can create notes");
     };
@@ -245,6 +260,9 @@ actor {
       examCategoryId;
       author = caller;
       timestamp = Time.now();
+      fileId;
+      fileName;
+      fileType;
     };
     studyNotes.add(id, note);
     id;
@@ -255,7 +273,15 @@ actor {
     studyNotes.values().toArray().sort();
   };
 
-  public shared ({ caller }) func updateStudyNote(id : Nat32, title : Text, content : Text, subject : Text) : async () {
+  public shared ({ caller }) func updateStudyNote(
+    id : Nat32,
+    title : Text,
+    content : Text,
+    subject : Text,
+    fileId : ?Text,
+    fileName : ?Text,
+    fileType : ?Text
+  ) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can update notes");
     };
@@ -265,7 +291,7 @@ actor {
         if (note.author != caller and not AccessControl.isAdmin(accessControlState, caller)) {
           Runtime.trap("Unauthorized: Only the author or admin can update");
         };
-        let updatedNote = { note with title; content; subject };
+        let updatedNote = { note with title; content; subject; fileId; fileName; fileType };
         studyNotes.add(id, updatedNote);
       };
     };
@@ -470,19 +496,6 @@ actor {
     };
   };
 
-  // User Profiles (Legacy - kept for compatibility)
-  public shared ({ caller }) func createUserProfile(displayName : Text, bio : Text, expertiseTags : [Text]) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create profiles");
-    };
-    let profile = {
-      displayName;
-      bio;
-      expertiseTags;
-    };
-    userProfiles.add(caller, profile);
-  };
-
   // Search
   public query ({ caller }) func searchNotesByTitle(queryText : Text) : async [StudyNote] {
     // Public read access - no authentication required
@@ -500,14 +513,20 @@ actor {
     };
 
     // Check if admin has already been assigned
-    if (adminAssigned) {
+    if (accessControlState.adminAssigned) {
       Runtime.trap("Admin has already been assigned");
     };
 
     // Assign admin role to caller
     AccessControl.assignRole(accessControlState, caller, caller, #admin);
-    adminAssigned := true;
 
     "Admin access granted";
   };
+
+  // Admin status
+  public query ({ caller }) func getAdminStatus() : async Bool {
+    accessControlState.adminAssigned;
+  };
+
+  // Add more utility functions as needed
 };
