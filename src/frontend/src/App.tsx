@@ -3,6 +3,7 @@ import { Outlet, RouterProvider, createRouter } from "@tanstack/react-router";
 import { createRootRoute, createRoute } from "@tanstack/react-router";
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
+import PostLoginRoleAssigner from "./components/PostLoginRoleAssigner";
 import AdminPage from "./pages/AdminPage";
 import GuidancePage from "./pages/GuidancePage";
 import LandingPage from "./pages/LandingPage";
@@ -18,6 +19,7 @@ const rootRoute = createRootRoute({
   component: () => (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Navbar />
+      <PostLoginRoleAssigner />
       <main className="flex-1">
         <Outlet />
       </main>

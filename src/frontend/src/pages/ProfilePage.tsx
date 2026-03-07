@@ -15,6 +15,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -37,12 +38,14 @@ import {
   GraduationCap,
   Loader2,
   LogIn,
+  Pencil,
   Save,
   Shield,
   Star,
   Tag,
   Trash2,
   User,
+  Users,
   X,
   XCircle,
 } from "lucide-react";
@@ -67,6 +70,160 @@ import {
   useStudyNotes,
   useUpdateBookingStatus,
 } from "../hooks/useQueries";
+import { useUserRole } from "../hooks/useUserRole";
+
+function ChangeRoleDialog({
+  open,
+  onOpenChange,
+  currentRole,
+  onSave,
+  isSaving,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentRole: "student" | "tutor" | null;
+  onSave: (role: "student" | "tutor") => void;
+  isSaving: boolean;
+}) {
+  const [selected, setSelected] = useState<"student" | "tutor" | null>(
+    currentRole,
+  );
+
+  // Reset to current role when dialog opens
+  useEffect(() => {
+    if (open) setSelected(currentRole);
+  }, [open, currentRole]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="sm:max-w-md bg-card border-border/60"
+        data-ocid="profile.role.change.dialog"
+      >
+        <DialogHeader>
+          <DialogTitle className="font-display font-bold">
+            Change Your Role
+          </DialogTitle>
+          <DialogDescription className="text-muted-foreground text-sm">
+            Select your role on ExamGuide. This affects how others see you.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-3 py-2">
+          {/* Student Card */}
+          <button
+            type="button"
+            onClick={() => setSelected("student")}
+            data-ocid="profile.role.student.card"
+            className={cn(
+              "flex flex-col items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 text-center",
+              selected === "student"
+                ? "border-teal/50 bg-teal/8 shadow-md"
+                : "border-border/40 bg-surface-2 hover:border-border/70",
+            )}
+          >
+            <div
+              className={cn(
+                "w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all",
+                selected === "student"
+                  ? "border-teal/40 bg-teal/10"
+                  : "border-border/30 bg-card",
+              )}
+            >
+              <BookOpen
+                className={cn(
+                  "w-6 h-6 transition-colors",
+                  selected === "student"
+                    ? "text-teal"
+                    : "text-muted-foreground",
+                )}
+              />
+            </div>
+            <div>
+              <p
+                className={cn(
+                  "font-display font-bold text-sm",
+                  selected === "student" ? "text-teal" : "text-foreground/80",
+                )}
+              >
+                Student
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Learn & get guidance
+              </p>
+            </div>
+          </button>
+
+          {/* Tutor Card */}
+          <button
+            type="button"
+            onClick={() => setSelected("tutor")}
+            data-ocid="profile.role.tutor.card"
+            className={cn(
+              "flex flex-col items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 text-center",
+              selected === "tutor"
+                ? "border-amber/50 bg-amber/8 shadow-md"
+                : "border-border/40 bg-surface-2 hover:border-border/70",
+            )}
+          >
+            <div
+              className={cn(
+                "w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all",
+                selected === "tutor"
+                  ? "border-amber/40 bg-amber/10"
+                  : "border-border/30 bg-card",
+              )}
+            >
+              <Users
+                className={cn(
+                  "w-6 h-6 transition-colors",
+                  selected === "tutor" ? "text-amber" : "text-muted-foreground",
+                )}
+              />
+            </div>
+            <div>
+              <p
+                className={cn(
+                  "font-display font-bold text-sm",
+                  selected === "tutor" ? "text-amber" : "text-foreground/80",
+                )}
+              >
+                Tutor
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Teach & mentor students
+              </p>
+            </div>
+          </button>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="border-border/60"
+            data-ocid="profile.role.cancel.button"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => selected && onSave(selected)}
+            disabled={!selected || isSaving || selected === currentRole}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
+            data-ocid="profile.role.save.button"
+          >
+            {isSaving ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Save className="w-3.5 h-3.5" />
+            )}
+            Save Role
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function LoginPrompt({ onLogin }: { onLogin: () => void }) {
   return (
@@ -154,9 +311,11 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [stripeKey, setStripeKey] = useState("");
   const [stripeCountries, setStripeCountries] = useState("US,CA,GB,AU");
+  const [changeRoleOpen, setChangeRoleOpen] = useState(false);
 
   const { data: profile, isLoading: profileLoading } = useCallerProfile();
   const { data: role } = useCallerRole();
+  const { role: userRole } = useUserRole();
   const { data: backendNotes } = useStudyNotes();
   const { data: backendPosts } = useGuidancePosts();
   const { data: bookingRequests } = useBookingRequestsForTutor(
@@ -227,6 +386,28 @@ export default function ProfilePage() {
       setEditMode(false);
     } catch {
       toast.error("Failed to save profile");
+    }
+  };
+
+  const handleChangeRole = async (newRole: "student" | "tutor") => {
+    const currentTags = profile?.expertiseTags ?? [];
+    // Replace any existing role tags, keep other tags
+    const otherTags = currentTags.filter(
+      (t: string) => t !== "student" && t !== "tutor",
+    );
+    const newTags = [newRole, ...otherTags];
+    try {
+      await saveProfile.mutateAsync({
+        displayName: profile?.displayName ?? displayName,
+        bio: profile?.bio ?? bio,
+        expertiseTags: newTags,
+      });
+      toast.success(
+        `Role updated to ${newRole === "tutor" ? "Tutor / Mentor" : "Student"}!`,
+      );
+      setChangeRoleOpen(false);
+    } catch {
+      toast.error("Failed to update role");
     }
   };
 
@@ -460,6 +641,63 @@ export default function ProfilePage() {
                   </span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Your Role section */}
+          <div
+            className="p-5 rounded-2xl bg-card border border-border/60 mb-6"
+            data-ocid="profile.role.section"
+          >
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                  {userRole === "tutor" ? (
+                    <Users className="w-4 h-4 text-amber" />
+                  ) : (
+                    <GraduationCap className="w-4 h-4 text-teal" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">
+                    Your Role
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      data-ocid="profile.role.badge"
+                      className={cn(
+                        "text-sm font-semibold px-2.5 py-0.5",
+                        userRole === "tutor"
+                          ? "border-amber/40 bg-amber/10 text-amber"
+                          : "border-teal/40 bg-teal/10 text-teal",
+                      )}
+                    >
+                      {userRole === "tutor" ? (
+                        <>
+                          <Users className="w-3 h-3 mr-1" />
+                          Tutor / Mentor
+                        </>
+                      ) : (
+                        <>
+                          <GraduationCap className="w-3 h-3 mr-1" />
+                          Student
+                        </>
+                      )}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setChangeRoleOpen(true)}
+                data-ocid="profile.role.change_button"
+                className="border-border/60 gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Change Role
+              </Button>
             </div>
           </div>
 
@@ -927,6 +1165,15 @@ export default function ProfilePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Change Role Dialog */}
+      <ChangeRoleDialog
+        open={changeRoleOpen}
+        onOpenChange={setChangeRoleOpen}
+        currentRole={userRole}
+        onSave={handleChangeRole}
+        isSaving={saveProfile.isPending}
+      />
     </div>
   );
 }
