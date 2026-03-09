@@ -21,6 +21,20 @@ export interface BookingRequest {
 export type BookingStatus = { 'pending' : null } |
   { 'rejected' : null } |
   { 'accepted' : null };
+export interface ChatMessage {
+  'id' : number,
+  'content' : string,
+  'recipient' : Principal,
+  'sender' : Principal,
+  'conversationId' : string,
+  'timestamp' : Time,
+  'sharedNoteId' : [] | [number],
+}
+export interface ConversationSummary {
+  'lastMessage' : string,
+  'otherUser' : Principal,
+  'timestamp' : Time,
+}
 export interface ExamCategory {
   'id' : number,
   'name' : string,
@@ -181,6 +195,8 @@ export interface _SERVICE {
   'getBookmarks' : ActorMethod<[Principal], Uint32Array>,
   'getCallerUserProfile' : ActorMethod<[], [] | [T]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getConversation' : ActorMethod<[Principal], Array<ChatMessage>>,
+  'getMyConversations' : ActorMethod<[], Array<ConversationSummary>>,
   'getReviewsForTutor' : ActorMethod<[Principal], Array<Review>>,
   'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
   'getUserProfile' : ActorMethod<[Principal], [] | [T]>,
@@ -188,6 +204,7 @@ export interface _SERVICE {
   'isStripeConfigured' : ActorMethod<[], boolean>,
   'saveCallerUserProfile' : ActorMethod<[T], undefined>,
   'searchNotesByTitle' : ActorMethod<[string], Array<StudyNote>>,
+  'sendMessage' : ActorMethod<[Principal, string, [] | [number]], number>,
   'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
   /**
    * / TRANSFORM CALLBACK REQUIRED FOR HTTP OUTCALLS (e.g. Stripe)

@@ -70,6 +70,15 @@ export interface TransformationInput {
     context: Uint8Array;
     response: http_request_result;
 }
+export interface ChatMessage {
+    id: number;
+    content: string;
+    recipient: Principal;
+    sender: Principal;
+    conversationId: string;
+    timestamp: Time;
+    sharedNoteId?: number;
+}
 export type StripeSessionStatus = {
     __kind__: "completed";
     completed: {
@@ -96,6 +105,11 @@ export interface StudyNote {
     fileType?: string;
     author: Principal;
     fileId?: string;
+    timestamp: Time;
+}
+export interface ConversationSummary {
+    lastMessage: string;
+    otherUser: Principal;
     timestamp: Time;
 }
 export interface Review {
@@ -138,6 +152,8 @@ export interface backendInterface {
     getBookmarks(user: Principal): Promise<Uint32Array>;
     getCallerUserProfile(): Promise<T | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getConversation(otherUser: Principal): Promise<Array<ChatMessage>>;
+    getMyConversations(): Promise<Array<ConversationSummary>>;
     getReviewsForTutor(tutor: Principal): Promise<Array<Review>>;
     getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
     getUserProfile(user: Principal): Promise<T | null>;
@@ -145,6 +161,7 @@ export interface backendInterface {
     isStripeConfigured(): Promise<boolean>;
     saveCallerUserProfile(profile: T): Promise<void>;
     searchNotesByTitle(queryText: string): Promise<Array<StudyNote>>;
+    sendMessage(recipient: Principal, content: string, sharedNoteId: number | null): Promise<number>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
     /**
      * / TRANSFORM CALLBACK REQUIRED FOR HTTP OUTCALLS (e.g. Stripe)

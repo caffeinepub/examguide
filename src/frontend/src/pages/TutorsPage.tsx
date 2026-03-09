@@ -40,6 +40,7 @@ import {
   Info,
   Loader2,
   MessageCircle,
+  MessageSquare,
   Plus,
   Search,
   Send,
@@ -665,7 +666,7 @@ export default function TutorsPage() {
 
                 {/* Actions */}
                 {isLoggedIn ? (
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 flex-wrap">
                     <Button
                       className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
                       onClick={() => setBookingOpen(true)}
@@ -682,6 +683,20 @@ export default function TutorsPage() {
                     >
                       <Star className="w-4 h-4" />
                       Review
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border-border/60 gap-2"
+                      onClick={() => {
+                        const principalStr = selectedTutor?.user?.toString();
+                        if (principalStr) {
+                          window.location.href = `/chat?with=${encodeURIComponent(principalStr)}`;
+                        }
+                      }}
+                      data-ocid="tutors.message.button"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Message
                     </Button>
                   </div>
                 ) : (

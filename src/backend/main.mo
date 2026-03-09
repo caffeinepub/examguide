@@ -14,10 +14,10 @@ import OutCall "http-outcalls/outcall";
 import AccessControl "authorization/access-control";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
-
+import Migration "migration";
 
 // Apply migration data transformation
-
+(with migration = Migration.run)
 actor {
   /// PREFABRICATED COMPONENTS
   let accessControlState = AccessControl.initState();
@@ -139,6 +139,31 @@ actor {
   let bookmarks = Map.empty<Principal, List.List<Nat32>>();
   let userProfiles = Map.empty<Principal, UserProfile.T>();
 
+  // Chat system state
+  public type ConversationSummary = {
+    otherUser : Principal;
+    lastMessage : Text;
+    timestamp : Time.Time;
+  };
+
+  module ChatMessage {
+    public type T = {
+      id : Nat32;
+      conversationId : Text;
+      sender : Principal;
+      recipient : Principal;
+      content : Text;
+      sharedNoteId : ?Nat32;
+      timestamp : Time.Time;
+    };
+    public func compare(a : T, b : T) : Order.Order {
+      Nat32.compare(a.id, b.id);
+    };
+  };
+
+  let chatMessages = Map.empty<Nat32, ChatMessage.T>();
+  var nextMessageId : Nat = 1;
+
   // ID Generation
   var nextExamCategoryId = 1;
   var nextNoteId = 1;
@@ -155,6 +180,9 @@ actor {
   public type TutorMentorProfile = TutorMentorProfile.T;
   public type BookingRequest = BookingRequest.T;
   public type Review = Review.T;
+
+  // Chat message and conversation types
+  public type ChatMessage = ChatMessage.T;
 
   // Stripe Configuration
   var configuration : ?Stripe.StripeConfiguration = null;
@@ -505,6 +533,122 @@ actor {
     }).sort();
   };
 
+  // Chat Messaging system
+
+  func compareMessagesByTimestamp(a : ChatMessage, b : ChatMessage) : Order.Order {
+    if (a.timestamp < b.timestamp) {
+      #less;
+    } else if (a.timestamp > b.timestamp) {
+      #greater;
+    } else {
+      #equal;
+    };
+  };
+
+  public shared ({ caller }) func sendMessage(recipient : Principal, content : Text, sharedNoteId : ?Nat32) : async Nat32 {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can send messages");
+    };
+
+    let conversationId = if (caller.toText() < recipient.toText()) {
+      caller.toText() # ":" # recipient.toText();
+    } else {
+      recipient.toText() # ":" # caller.toText();
+    };
+
+    let messageId = Nat32.fromNat(nextMessageId);
+    nextMessageId += 1;
+
+    let message : ChatMessage = {
+      id = messageId;
+      conversationId;
+      sender = caller;
+      recipient;
+      content;
+      sharedNoteId;
+      timestamp = Time.now();
+    };
+
+    chatMessages.add(messageId, message);
+    messageId;
+  };
+
+  public query ({ caller }) func getConversation(otherUser : Principal) : async [ChatMessage] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view conversations");
+    };
+
+    let conversationId = if (caller.toText() < otherUser.toText()) {
+      caller.toText() # ":" # otherUser.toText();
+    } else {
+      otherUser.toText() # ":" # caller.toText();
+    };
+
+    let messages = List.empty<ChatMessage>();
+
+    for (msg in chatMessages.values()) {
+      if (msg.conversationId == conversationId) {
+        messages.add(msg);
+      };
+    };
+
+    messages.toArray().sort();
+  };
+
+  public query ({ caller }) func getMyConversations() : async [ConversationSummary] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view conversations");
+    };
+
+    let latestMessages = Map.empty<Text, ChatMessage>();
+
+    // Find latest message for each conversation
+    for (msg in chatMessages.values()) {
+      if (msg.sender == caller or msg.recipient == caller) {
+        switch (latestMessages.get(msg.conversationId)) {
+          case (null) {
+            latestMessages.add(msg.conversationId, msg);
+          };
+          case (?existing) {
+            if (msg.timestamp > existing.timestamp) {
+              latestMessages.add(msg.conversationId, msg);
+            };
+          };
+        };
+      };
+    };
+
+    var result = List.empty<ConversationSummary>();
+    let processedUsers = Map.empty<Text, Bool>();
+
+    for (kv in latestMessages.entries()) {
+      let conversationId = kv.0;
+      let message = kv.1;
+
+      if (message.sender == caller or message.recipient == caller) {
+        let otherUser = if (message.sender == caller) {
+          message.recipient;
+        } else {
+          message.sender;
+        };
+
+        let otherUserText = otherUser.toText();
+
+        if (not processedUsers.containsKey(otherUserText)) {
+          result.add({
+            otherUser;
+            lastMessage = message.content;
+            timestamp = message.timestamp;
+          });
+          processedUsers.add(otherUserText, true);
+        };
+      };
+    };
+
+    // Convert List to Array and return
+    result.toArray();
+  };
+
   // Claim initial admin (NEW FEATURE)
   public shared ({ caller }) func claimInitialAdmin() : async Text {
     // Check if caller is anonymous
@@ -529,4 +673,5 @@ actor {
   };
 
   // Add more utility functions as needed
+  // End of actor
 };

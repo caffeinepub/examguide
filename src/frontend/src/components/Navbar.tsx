@@ -9,6 +9,7 @@ import {
   LogIn,
   LogOut,
   Menu,
+  MessageSquare,
   Receipt,
   Shield,
   User,
@@ -111,6 +112,21 @@ export default function Navbar() {
               >
                 <Receipt className="w-4 h-4" />
                 Transactions
+              </Link>
+            )}
+            {isLoggedIn && (
+              <Link
+                to="/chat"
+                data-ocid="nav.chat.link"
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                  currentPath === "/chat"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+                )}
+              >
+                <MessageSquare className="w-4 h-4" />
+                Chat
               </Link>
             )}
             {isLoggedIn && (
@@ -218,6 +234,22 @@ export default function Navbar() {
                   >
                     <Receipt className="w-4 h-4" />
                     Transactions
+                  </Link>
+                )}
+                {isLoggedIn && (
+                  <Link
+                    to="/chat"
+                    onClick={() => setMobileOpen(false)}
+                    data-ocid="nav.mobile.chat.link"
+                    className={cn(
+                      "flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                      currentPath === "/chat"
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+                    )}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Chat
                   </Link>
                 )}
                 {isLoggedIn && (

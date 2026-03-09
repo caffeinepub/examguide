@@ -557,4 +557,56 @@ export function useRecordTransaction() {
   });
 }
 
+// ── Chat ─────────────────────────────────────────────────────────
+
+export function useMyConversations() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["conversations"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyConversations();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useConversation(otherUser: Principal | undefined) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["conversation", otherUser?.toString()],
+    queryFn: async () => {
+      if (!actor || !otherUser) return [];
+      return actor.getConversation(otherUser);
+    },
+    enabled: !!actor && !isFetching && !!otherUser,
+    refetchInterval: 5000,
+  });
+}
+
+export function useSendMessage() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      recipient,
+      content,
+      sharedNoteId,
+    }: {
+      recipient: Principal;
+      content: string;
+      sharedNoteId: number | null;
+    }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.sendMessage(recipient, content, sharedNoteId);
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({
+        queryKey: ["conversation", variables.recipient.toString()],
+      });
+    },
+  });
+}
+
 export { BookingStatus };

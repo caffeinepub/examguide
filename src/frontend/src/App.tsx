@@ -5,6 +5,7 @@ import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
 import PostLoginRoleAssigner from "./components/PostLoginRoleAssigner";
 import AdminPage from "./pages/AdminPage";
+import ChatPage from "./pages/ChatPage";
 import GuidancePage from "./pages/GuidancePage";
 import LandingPage from "./pages/LandingPage";
 import NotesPage from "./pages/NotesPage";
@@ -83,6 +84,12 @@ const transactionsRoute = createRoute({
   component: TransactionsPage,
 });
 
+const chatRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/chat",
+  component: ChatPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   notesRoute,
@@ -93,6 +100,7 @@ const routeTree = rootRoute.addChildren([
   paymentFailureRoute,
   adminRoute,
   transactionsRoute,
+  chatRoute,
 ]);
 
 const router = createRouter({ routeTree });

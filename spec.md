@@ -1,35 +1,46 @@
 # ExamGuide
 
 ## Current State
-Full-stack app with Motoko backend and React frontend. Features: exam categories, study notes, guidance posts, tutor/mentor profiles, booking requests, reviews, bookmarks, user profiles, Stripe payments, admin dashboard with claim-admin.
+Full-stack app with Motoko backend and React frontend. Features: exam categories, study notes (with file attachments: PDF, images, Word, etc.), guidance posts, tutor/mentor profiles, booking requests, reviews, bookmarks, user profiles, Stripe payments, admin dashboard, transactions page, and role selection (student/tutor) on login.
 
-Login flow: clicking "Sign In" immediately triggers Internet Identity login. After login, the user lands on their profile with no role pre-selection step.
+Notes currently support file upload (images, PDFs, etc.) and in the view dialog:
+- Images are shown inline
+- Non-image files (PDF, Word, etc.) show only a download button — no preview
 
-The backend has `saveCallerUserProfile` which stores a profile with `displayName`, `bio`, and `expertiseTags`. The `expertiseTags` array is currently used to store free-form tags but can also hold a role tag like "student" or "tutor".
-
-There is no frontend step that captures whether the user is a student or tutor before or right after login.
+There is no chat system between users.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **RoleSelectionModal component**: A modal dialog that appears when the user clicks "Sign In". It presents two large, visually distinct cards: "I am a Student" and "I am a Tutor/Mentor". The user selects one, then the login flow proceeds (Internet Identity opens). The selected role is stored in localStorage as `examguide_pending_role`.
-- **Post-login role assignment**: After a successful login, check if `examguide_pending_role` is set in localStorage. If the user has no existing profile, automatically create one with `expertiseTags: ["student"]` or `expertiseTags: ["tutor"]` depending on the pending role, then clear the localStorage key.
-- **Role-aware UI**: Display the user's role ("Student" or "Tutor") in the Navbar next to their identity indicator (small badge), and on the Profile page.
-- **useUserRole hook**: A convenience hook that derives whether the current user is a student or tutor from `expertiseTags[0]` of their profile.
+**Backend:**
+- `ChatMessage` type: `{ id: Nat32; conversationId: Text; sender: Principal; recipientOrGroup: Text; content: Text; sharedNoteId: ?Nat32; timestamp: Time.Time }`
+- `sendMessage(recipientPrincipal: Principal, content: Text, sharedNoteId: ?Nat32) : async Nat32` — stores a message between two users; conversationId is derived from sorted pair of principals
+- `getConversation(otherUser: Principal) : async [ChatMessage]` — returns messages between caller and otherUser
+- `getMyConversations() : async [{ otherUser: Principal; lastMessage: Text; timestamp: Time.Time }]` — returns list of recent conversations for the caller
+
+**Frontend:**
+- Note file preview improvements: PDF files rendered in an `<iframe>` embed within the view dialog so users can read before downloading; images already inline
+- `ChatPage` at `/chat` — lists the user's conversations and opens a thread view
+- Chat thread: shows messages chronologically with a text input to send a new message
+- "Share Note" button in view note dialog — opens a user-picker to send the note link/content via chat
+- "Message" button on tutor profile cards — opens chat with that tutor pre-selected
+- Chat nav link in Navbar for logged-in users
 
 ### Modify
-- **Navbar Sign In button**: Instead of directly calling `login()`, opens the RoleSelectionModal first. After the user picks their role, the modal triggers `login()`.
-- **ProfilePage**: Show the assigned role prominently (e.g. "Student" or "Tutor/Mentor" badge). Allow the user to change their role from this page.
-- **main.tsx / App.tsx**: Add a `PostLoginRoleAssigner` component that watches for login success and runs the profile-creation/role-assignment logic.
+- `NotesPage` view dialog: add PDF `<iframe>` preview panel above the download button for PDF files; for other non-image files, keep the download-only UI
+- `Navbar`: add "Chat" link (visible only when logged in)
 
 ### Remove
-- Nothing removed.
+- Nothing removed
 
 ## Implementation Plan
-1. Create `RoleSelectionModal.tsx` component with two role cards (Student / Tutor) and a confirm button that triggers login
-2. Update `Navbar.tsx` to open the modal instead of directly calling `login()`
-3. Create `PostLoginRoleAssigner.tsx` component that on login success reads `examguide_pending_role`, checks if a profile exists, creates one if not, then clears the key
-4. Mount `PostLoginRoleAssigner` in `App.tsx` inside the router root
-5. Create `useUserRole` hook derived from `useCallerProfile`
-6. Update `ProfilePage.tsx` to show role badge and allow changing it
-7. Add role badge to Navbar for logged-in users
+1. Add `ChatMessage` type, state, and ID counter to `main.mo`
+2. Add `sendMessage`, `getConversation`, `getMyConversations` functions to `main.mo`
+3. Regenerate backend to get updated `backend.d.ts`
+4. Update `NotesPage` view dialog: wrap PDF file in `<iframe>` preview with a download button beneath
+5. Create `ChatPage.tsx` with conversation list + thread view + send input + note-sharing
+6. Add "Message" button to tutor profile cards on `TutorsPage`
+7. Add "Share Note" button in `NotesPage` view dialog
+8. Add `/chat` route to `App.tsx`
+9. Add Chat nav link in `Navbar` for logged-in users
+10. Validate and deploy

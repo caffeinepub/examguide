@@ -86,6 +86,20 @@ export const T = IDL.Record({
   'displayName' : IDL.Text,
   'expertiseTags' : IDL.Vec(IDL.Text),
 });
+export const ChatMessage = IDL.Record({
+  'id' : IDL.Nat32,
+  'content' : IDL.Text,
+  'recipient' : IDL.Principal,
+  'sender' : IDL.Principal,
+  'conversationId' : IDL.Text,
+  'timestamp' : Time,
+  'sharedNoteId' : IDL.Opt(IDL.Nat32),
+});
+export const ConversationSummary = IDL.Record({
+  'lastMessage' : IDL.Text,
+  'otherUser' : IDL.Principal,
+  'timestamp' : Time,
+});
 export const Review = IDL.Record({
   'id' : IDL.Nat32,
   'tutor' : IDL.Principal,
@@ -217,6 +231,16 @@ export const idlService = IDL.Service({
   'getBookmarks' : IDL.Func([IDL.Principal], [IDL.Vec(IDL.Nat32)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(T)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getConversation' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Vec(ChatMessage)],
+      ['query'],
+    ),
+  'getMyConversations' : IDL.Func(
+      [],
+      [IDL.Vec(ConversationSummary)],
+      ['query'],
+    ),
   'getReviewsForTutor' : IDL.Func(
       [IDL.Principal],
       [IDL.Vec(Review)],
@@ -228,6 +252,11 @@ export const idlService = IDL.Service({
   'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'saveCallerUserProfile' : IDL.Func([T], [], []),
   'searchNotesByTitle' : IDL.Func([IDL.Text], [IDL.Vec(StudyNote)], ['query']),
+  'sendMessage' : IDL.Func(
+      [IDL.Principal, IDL.Text, IDL.Opt(IDL.Nat32)],
+      [IDL.Nat32],
+      [],
+    ),
   'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
   'transform' : IDL.Func(
       [TransformationInput],
@@ -331,6 +360,20 @@ export const idlFactory = ({ IDL }) => {
     'bio' : IDL.Text,
     'displayName' : IDL.Text,
     'expertiseTags' : IDL.Vec(IDL.Text),
+  });
+  const ChatMessage = IDL.Record({
+    'id' : IDL.Nat32,
+    'content' : IDL.Text,
+    'recipient' : IDL.Principal,
+    'sender' : IDL.Principal,
+    'conversationId' : IDL.Text,
+    'timestamp' : Time,
+    'sharedNoteId' : IDL.Opt(IDL.Nat32),
+  });
+  const ConversationSummary = IDL.Record({
+    'lastMessage' : IDL.Text,
+    'otherUser' : IDL.Principal,
+    'timestamp' : Time,
   });
   const Review = IDL.Record({
     'id' : IDL.Nat32,
@@ -464,6 +507,16 @@ export const idlFactory = ({ IDL }) => {
     'getBookmarks' : IDL.Func([IDL.Principal], [IDL.Vec(IDL.Nat32)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(T)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getConversation' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(ChatMessage)],
+        ['query'],
+      ),
+    'getMyConversations' : IDL.Func(
+        [],
+        [IDL.Vec(ConversationSummary)],
+        ['query'],
+      ),
     'getReviewsForTutor' : IDL.Func(
         [IDL.Principal],
         [IDL.Vec(Review)],
@@ -478,6 +531,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text],
         [IDL.Vec(StudyNote)],
         ['query'],
+      ),
+    'sendMessage' : IDL.Func(
+        [IDL.Principal, IDL.Text, IDL.Opt(IDL.Nat32)],
+        [IDL.Nat32],
+        [],
       ),
     'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
     'transform' : IDL.Func(

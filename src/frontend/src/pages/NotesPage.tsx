@@ -20,6 +20,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import type { Principal } from "@icp-sdk/core/principal";
+import { Principal as PrincipalClass } from "@icp-sdk/core/principal";
 import {
   BookOpen,
   Clock,
@@ -30,6 +32,8 @@ import {
   Paperclip,
   Plus,
   Search,
+  Send,
+  Share2,
   Trash2,
   Upload,
   User,
@@ -46,6 +50,7 @@ import {
   useDeleteStudyNote,
   useExamCategories,
   useSearchNotes,
+  useSendMessage,
   useStudyNotes,
   useUpdateStudyNote,
 } from "../hooks/useQueries";
@@ -415,6 +420,8 @@ export default function NotesPage() {
   const [viewNote, setViewNote] = useState<StudyNote | null>(null);
   const [editNote, setEditNote] = useState<StudyNote | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareRecipient, setShareRecipient] = useState("");
 
   // Text form state
   const [formTitle, setFormTitle] = useState("");
@@ -440,6 +447,7 @@ export default function NotesPage() {
   const createNote = useCreateStudyNote();
   const updateNote = useUpdateStudyNote();
   const deleteNote = useDeleteStudyNote();
+  const sendMessage = useSendMessage();
 
   const categories =
     backendCategories && backendCategories.length > 0
@@ -575,6 +583,33 @@ export default function NotesPage() {
       toast.success("Note deleted");
     } catch {
       toast.error("Failed to delete note");
+    }
+  };
+
+  const handleShareNote = async () => {
+    if (!viewNote) return;
+    if (!shareRecipient.trim()) {
+      toast.error("Please enter a recipient's principal");
+      return;
+    }
+    let recipientPrincipal: Principal;
+    try {
+      recipientPrincipal = PrincipalClass.fromText(shareRecipient.trim());
+    } catch {
+      toast.error("Invalid principal address");
+      return;
+    }
+    try {
+      await sendMessage.mutateAsync({
+        recipient: recipientPrincipal,
+        content: `Shared a note: ${viewNote.title}`,
+        sharedNoteId: viewNote.id,
+      });
+      toast.success("Note shared!");
+      setShareDialogOpen(false);
+      setShareRecipient("");
+    } catch {
+      toast.error("Failed to share note");
     }
   };
 
@@ -945,6 +980,36 @@ export default function NotesPage() {
                     </div>
                   )}
                 </div>
+              ) : viewNote.fileType === "application/pdf" ? (
+                <div className="rounded-xl overflow-hidden border border-border/60 bg-surface-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-4 pt-3 pb-2">
+                    Preview
+                  </p>
+                  <iframe
+                    src={viewNote.fileId}
+                    title={viewNote.fileName ?? "PDF Preview"}
+                    width="100%"
+                    height="480px"
+                    className="border-0"
+                  />
+                  {viewNote.fileName && (
+                    <div className="px-4 py-2 border-t border-border/50 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground truncate">
+                        {viewNote.fileName}
+                      </span>
+                      <a
+                        href={viewNote.fileId}
+                        download={viewNote.fileName}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary text-xs hover:underline flex items-center gap-1 shrink-0 ml-2"
+                      >
+                        <Download className="w-3 h-3" />
+                        Download
+                      </a>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="flex items-center gap-3 p-4 rounded-xl bg-surface-2 border border-border/60">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
@@ -984,15 +1049,90 @@ export default function NotesPage() {
             </div>
           )}
 
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-between mt-4">
+            {isLoggedIn && (
+              <Button
+                variant="outline"
+                onClick={() => setShareDialogOpen(true)}
+                data-ocid="notes.share.button"
+                className="border-border/60 gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                Share
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => setViewNote(null)}
               data-ocid="notes.close_button"
-              className="border-border/60"
+              className="border-border/60 ml-auto"
             >
               Close
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Share Note Dialog ── */}
+      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+        <DialogContent
+          className="max-w-sm bg-card border-border/60"
+          data-ocid="notes.share.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg">
+              Share Note
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground text-sm">
+              Share "{viewNote?.title}" with another user
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label
+                htmlFor="share-recipient"
+                className="text-sm font-medium text-foreground mb-1.5 block"
+              >
+                Recipient's Principal
+              </Label>
+              <Input
+                id="share-recipient"
+                value={shareRecipient}
+                onChange={(e) => setShareRecipient(e.target.value)}
+                placeholder="aaaaa-bbbbb-ccccc-..."
+                className="bg-surface-2 border-border/60 font-mono text-xs"
+                data-ocid="notes.share.recipient.input"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter the full principal ID of the person you want to share with
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 border-border/60"
+                onClick={() => {
+                  setShareDialogOpen(false);
+                  setShareRecipient("");
+                }}
+                data-ocid="notes.share.cancel_button"
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                onClick={handleShareNote}
+                disabled={sendMessage.isPending}
+                data-ocid="notes.share.send_button"
+              >
+                {sendMessage.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                Send
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
