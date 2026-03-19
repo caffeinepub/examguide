@@ -675,20 +675,23 @@ actor {
   };
 
   // Claim initial admin (NEW FEATURE)
+  // Only this specific principal is allowed to claim admin
+  let ALLOWED_ADMIN_PRINCIPAL : Principal = Principal.fromText("dwjrq-32gbe-q3u3u-tfd2g-2z7gm-lrdbi-5uiqy-2hhus-oupgo-wgabh-vqe");
+
   public shared ({ caller }) func claimInitialAdmin() : async Text {
     // Check if caller is anonymous
     if (caller.isAnonymous()) {
       Runtime.trap("Must be logged in to claim admin");
     };
 
+    // Only allow the designated admin principal
+    if (caller != ALLOWED_ADMIN_PRINCIPAL) {
+      Runtime.trap("Unauthorized: Only the platform owner can claim admin access.");
+    };
+
     // If caller is already admin, succeed immediately
     if (AccessControl.isAdmin(accessControlState, caller)) {
       return "You already have admin access";
-    };
-
-    // If admin has already been assigned to someone else, block
-    if (accessControlState.adminAssigned) {
-      Runtime.trap("Admin has already been assigned to another account. Please log in with the correct account.");
     };
 
     // Assign admin role to caller

@@ -100,9 +100,14 @@ function StatCard({
 }
 
 // ── Main Component ────────────────────────────────────────────
+const ALLOWED_ADMIN_PRINCIPAL =
+  "dwjrq-32gbe-q3u3u-tfd2g-2z7gm-lrdbi-5uiqy-2hhus-oupgo-wgabh-vqe";
+
 export default function AdminPage() {
   const { identity, isInitializing, login } = useInternetIdentity();
   const isLoggedIn = !!identity;
+  const callerPrincipal = identity?.getPrincipal()?.toText() ?? "";
+  const isAllowedToClaimAdmin = callerPrincipal === ALLOWED_ADMIN_PRINCIPAL;
 
   const { data: role, isLoading: roleLoading } = useCallerRole();
   const isAdmin = role === "admin";
@@ -331,32 +336,46 @@ export default function AdminPage() {
                   <h3 className="font-display font-bold text-foreground text-base mb-1">
                     Claim Admin Access
                   </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                    No admin has been assigned yet. Click below to claim admin
-                    access for your account.
-                  </p>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        await claimAdmin.mutateAsync();
-                        toast.success("Admin access granted!");
-                      } catch {
-                        toast.error(
-                          "Failed to claim admin access. It may have already been claimed.",
-                        );
-                      }
-                    }}
-                    disabled={claimAdmin.isPending}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-                    data-ocid="admin.claim_admin.primary_button"
-                  >
-                    {claimAdmin.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Shield className="w-4 h-4" />
-                    )}
-                    Claim Admin Access
-                  </Button>
+                  {isAllowedToClaimAdmin ? (
+                    <>
+                      <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+                        No admin has been assigned yet. Click below to claim
+                        admin access for your account.
+                      </p>
+                      <Button
+                        onClick={async () => {
+                          try {
+                            await claimAdmin.mutateAsync();
+                            toast.success("Admin access granted!");
+                          } catch {
+                            toast.error(
+                              "Failed to claim admin access. It may have already been claimed.",
+                            );
+                          }
+                        }}
+                        disabled={claimAdmin.isPending}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                        data-ocid="admin.claim_admin.primary_button"
+                      >
+                        {claimAdmin.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Shield className="w-4 h-4" />
+                        )}
+                        Claim Admin Access
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-3">
+                      <p className="text-sm text-destructive font-medium">
+                        Access Denied
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Admin access is restricted to the platform owner. Your
+                        account is not authorized to claim admin.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
