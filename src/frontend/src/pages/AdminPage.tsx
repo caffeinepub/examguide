@@ -30,6 +30,7 @@ import {
   Compass,
   CreditCard,
   Loader2,
+  Megaphone,
   Plus,
   Receipt,
   Save,
@@ -41,6 +42,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import AdminGuard from "../components/AdminGuard";
+import { useActor } from "../hooks/useActor";
 import {
   useAddExamCategory,
   useAdminStatus,
@@ -113,6 +115,87 @@ export default function AdminPage() {
   const { data: categories, isLoading: categoriesLoading } =
     useExamCategories();
   const { data: stripeConfigured } = useIsStripeConfigured();
+
+  // Ad management state
+  const { actor } = useActor();
+  const [ads, setAds] = useState<
+    Array<{
+      id: number;
+      company: string;
+      tagline: string;
+      ctaText: string;
+      ctaUrl: string;
+    }>
+  >([]);
+  const [adsLoading, setAdsLoading] = useState(false);
+  const [adCompany, setAdCompany] = useState("");
+  const [adTagline, setAdTagline] = useState("");
+  const [adCtaText, setAdCtaText] = useState("");
+  const [adCtaUrl, setAdCtaUrl] = useState("");
+  const [adAdding, setAdAdding] = useState(false);
+  const [adRemoving, setAdRemoving] = useState<number | null>(null);
+
+  const loadAds = async () => {
+    if (!actor) return;
+    setAdsLoading(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = (await (actor as any).getAdContent()) as Array<{
+        id: number;
+        company: string;
+        tagline: string;
+        ctaText: string;
+        ctaUrl: string;
+      }>;
+      setAds(result ?? []);
+    } catch {
+      toast.error("Failed to load ads");
+    } finally {
+      setAdsLoading(false);
+    }
+  };
+
+  const handleAddBanner = async () => {
+    if (!actor || !adCompany || !adTagline || !adCtaText || !adCtaUrl) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+    setAdAdding(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (actor as any).addAdBanner(
+        adCompany,
+        adTagline,
+        adCtaText,
+        adCtaUrl,
+      );
+      toast.success("Ad banner added");
+      setAdCompany("");
+      setAdTagline("");
+      setAdCtaText("");
+      setAdCtaUrl("");
+      loadAds();
+    } catch {
+      toast.error("Failed to add banner");
+    } finally {
+      setAdAdding(false);
+    }
+  };
+
+  const handleRemoveBanner = async (id: number) => {
+    if (!actor) return;
+    setAdRemoving(id);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (actor as any).removeAdBanner(id);
+      toast.success("Ad banner removed");
+      loadAds();
+    } catch {
+      toast.error("Failed to remove banner");
+    } finally {
+      setAdRemoving(null);
+    }
+  };
 
   const addCategory = useAddExamCategory();
   const setStripeConfig = useSetStripeConfiguration();
@@ -722,6 +805,172 @@ export default function AdminPage() {
             </section>
           </motion.div>
         </div>
+
+        {/* Ad Management Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.5 }}
+          className="mt-8"
+        >
+          <section className="rounded-2xl bg-card border border-border/60 overflow-hidden">
+            <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber/10 border border-amber/30 flex items-center justify-center">
+                  <Megaphone className="w-4 h-4 text-amber" />
+                </div>
+                <h2 className="font-display text-lg font-semibold">
+                  Ad Management
+                </h2>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-border/60 gap-1.5"
+                onClick={loadAds}
+                data-ocid="admin.ads.load_button"
+              >
+                Load Ads
+              </Button>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Add Banner Form */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Add New Banner
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">
+                      Company Name
+                    </Label>
+                    <Input
+                      value={adCompany}
+                      onChange={(e) => setAdCompany(e.target.value)}
+                      placeholder="e.g. Unacademy"
+                      className="bg-surface-2 border-border/60"
+                      data-ocid="ad_management.company_input"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">
+                      Tagline
+                    </Label>
+                    <Input
+                      value={adTagline}
+                      onChange={(e) => setAdTagline(e.target.value)}
+                      placeholder="e.g. India's largest learning platform"
+                      className="bg-surface-2 border-border/60"
+                      data-ocid="ad_management.tagline_input"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">
+                      CTA Button Text
+                    </Label>
+                    <Input
+                      value={adCtaText}
+                      onChange={(e) => setAdCtaText(e.target.value)}
+                      placeholder="e.g. Explore Courses"
+                      className="bg-surface-2 border-border/60"
+                      data-ocid="ad_management.ctaText_input"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">
+                      CTA URL
+                    </Label>
+                    <Input
+                      value={adCtaUrl}
+                      onChange={(e) => setAdCtaUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="bg-surface-2 border-border/60"
+                      data-ocid="ad_management.ctaUrl_input"
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={handleAddBanner}
+                  disabled={adAdding}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                  data-ocid="ad_management.add_button"
+                >
+                  {adAdding ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  Add Banner
+                </Button>
+              </div>
+
+              <Separator className="bg-border/50" />
+
+              {/* Current banners list */}
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-3">
+                  Current Banners
+                </h3>
+                {adsLoading ? (
+                  <div
+                    className="space-y-2"
+                    data-ocid="admin.ads.loading_state"
+                  >
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                  </div>
+                ) : ads.length === 0 ? (
+                  <div
+                    className="text-center py-8 text-muted-foreground text-sm"
+                    data-ocid="admin.ads.empty_state"
+                  >
+                    No ad banners yet. Click "Load Ads" to refresh or add one
+                    above.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {ads.map((ad, i) => (
+                      <div
+                        key={ad.id}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-surface-2 border border-border/50"
+                        data-ocid={`admin.ads.item.${i + 1}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground">
+                            {ad.company}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {ad.tagline}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="text-xs border-border/50 shrink-0"
+                        >
+                          {ad.ctaText}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                          onClick={() => handleRemoveBanner(ad.id)}
+                          disabled={adRemoving === ad.id}
+                          data-ocid={`ad_management.remove_button.${i + 1}`}
+                        >
+                          {adRemoving === ad.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </motion.div>
 
         {/* Delete Category Confirmation */}
         <AlertDialog

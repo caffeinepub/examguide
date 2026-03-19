@@ -51,10 +51,13 @@ import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { Review, TutorMentorProfile } from "../backend.d";
+import AdBannerStrip from "../components/AdBannerStrip";
+import UpgradeModal from "../components/UpgradeModal";
 import { SAMPLE_EXAM_CATEGORIES } from "../data/sampleData";
 import { formatTimestamp } from "../data/sampleData";
 import { useCreateCheckoutSession } from "../hooks/useCheckout";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { usePlanInfo } from "../hooks/usePlanInfo";
 import {
   PLATFORM_FEE_PERCENT,
   useCreateBookingRequest,
@@ -148,6 +151,8 @@ function TutorReviews({ tutor }: { tutor: TutorMentorProfile }) {
 export default function TutorsPage() {
   const { identity } = useInternetIdentity();
   const isLoggedIn = !!identity && !identity.getPrincipal().isAnonymous();
+  const { isPaid } = usePlanInfo();
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterExam, setFilterExam] = useState<string>("all");
@@ -359,16 +364,30 @@ export default function TutorsPage() {
                 Connect with verified tutors and mentors worldwide
               </p>
             </div>
-            {isLoggedIn && (
-              <Button
-                onClick={() => setCreateProfileOpen(true)}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 gap-2"
-                data-ocid="tutors.create_profile.button"
-              >
-                <Plus className="w-4 h-4" />
-                Create My Profile
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {isLoggedIn && !isPaid && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber/40 text-amber hover:bg-amber/10 gap-1.5 shrink-0"
+                  onClick={() => setUpgradeModalOpen(true)}
+                  data-ocid="tutors.upgrade.button"
+                >
+                  <span>⭐</span>
+                  Upgrade to Premium
+                </Button>
+              )}
+              {isLoggedIn && (
+                <Button
+                  onClick={() => setCreateProfileOpen(true)}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 gap-2"
+                  data-ocid="tutors.create_profile.button"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create My Profile
+                </Button>
+              )}
+            </div>
           </div>
         </motion.div>
 
@@ -1070,6 +1089,15 @@ export default function TutorsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Ad Banner for free users */}
+      {!isPaid && <AdBannerStrip />}
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+      />
     </div>
   );
 }

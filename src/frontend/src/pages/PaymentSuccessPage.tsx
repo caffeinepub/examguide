@@ -1,7 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { Link, useSearch } from "@tanstack/react-router";
-import { CheckCircle2, LayoutDashboard, Receipt, Users } from "lucide-react";
+import {
+  CheckCircle2,
+  LayoutDashboard,
+  Receipt,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { motion } from "motion/react";
+import { useEffect, useState } from "react";
+import { useActor } from "../hooks/useActor";
 
 export default function PaymentSuccessPage() {
   // Read query params for fee breakdown
@@ -9,7 +17,24 @@ export default function PaymentSuccessPage() {
     string,
     string | undefined
   >;
+  const { actor } = useActor();
+  const planParam = search?.plan;
+  const sessionId = search?.session_id;
+  const isPremiumPlan = planParam === "premium";
+  const [premiumActivated, setPremiumActivated] = useState(false);
   const amountParam = search?.amount;
+
+  // Activate premium plan if redirected back from Stripe
+  useEffect(() => {
+    if (!isPremiumPlan || !actor || !sessionId || premiumActivated) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (actor as any)
+      .activatePaidPlan(sessionId)
+      .then(() => setPremiumActivated(true))
+      .catch(() => {
+        /* silent - plan may already be active */
+      });
+  }, [isPremiumPlan, actor, sessionId, premiumActivated]);
   const tutorName = search?.tutorName
     ? decodeURIComponent(search.tutorName)
     : undefined;
@@ -66,10 +91,20 @@ export default function PaymentSuccessPage() {
           <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-3">
             Payment Successful!
           </h1>
-          <p className="text-muted-foreground text-base leading-relaxed mb-6">
-            Your session has been booked. The tutor will confirm your
-            appointment shortly. Check your dashboard for updates.
-          </p>
+          {isPremiumPlan ? (
+            <div className="mb-6 p-4 rounded-xl bg-amber/10 border border-amber/30 flex items-center gap-3">
+              <Sparkles className="w-5 h-5 text-amber shrink-0" />
+              <p className="text-sm font-medium text-foreground text-left">
+                Your Premium plan is now active! Enjoy unlimited access to
+                notes, tutors, and more.
+              </p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-base leading-relaxed mb-6">
+              Your session has been booked. The tutor will confirm your
+              appointment shortly. Check your dashboard for updates.
+            </p>
+          )}
         </motion.div>
 
         {/* Fee Breakdown Card */}

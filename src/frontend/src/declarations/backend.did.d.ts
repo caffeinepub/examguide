@@ -10,6 +10,19 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface AdBanner {
+  'id' : number,
+  'company' : string,
+  'tagline' : string,
+  'ctaText' : string,
+  'ctaUrl' : string,
+}
+export type SubscriptionPlan = { 'free' : null } | { 'paid' : null };
+export interface StudentSubscription {
+  'plan' : SubscriptionPlan,
+  'paidUntil' : [] | [bigint],
+  'lastResetMonth' : bigint,
+}
 export interface BookingRequest {
   'id' : number,
   'status' : BookingStatus,
@@ -183,6 +196,12 @@ export interface _SERVICE {
   >,
   'deleteGuidancePost' : ActorMethod<[number], undefined>,
   'deleteStudyNote' : ActorMethod<[number], undefined>,
+  'getAdContent' : ActorMethod<[], Array<AdBanner>>,
+  'addAdBanner' : ActorMethod<[string, string, string, string], number>,
+  'removeAdBanner' : ActorMethod<[number], undefined>,
+  'getMySubscription' : ActorMethod<[], StudentSubscription>,
+  'createPaidPlanCheckout' : ActorMethod<[string, string], string>,
+  'activatePaidPlan' : ActorMethod<[string], undefined>,
   'getAdminStatus' : ActorMethod<[], boolean>,
   'getAllExamCategories' : ActorMethod<[], Array<ExamCategory>>,
   'getAllGuidancePosts' : ActorMethod<[], Array<GuidancePost>>,

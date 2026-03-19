@@ -14,10 +14,10 @@ import OutCall "http-outcalls/outcall";
 import AccessControl "authorization/access-control";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
-import Migration "migration";
+
 
 // Apply migration data transformation
-(with migration = Migration.run)
+
 actor {
   /// PREFABRICATED COMPONENTS
   let accessControlState = AccessControl.initState();
@@ -171,6 +171,31 @@ actor {
   var nextProfileId = 1;
   var nextBookingId = 1;
   var nextReviewId = 1;
+
+  // Ad Banner type
+  public type AdBanner = {
+    id : Nat32;
+    company : Text;
+    tagline : Text;
+    ctaText : Text;
+    ctaUrl : Text;
+  };
+
+  // Student subscription type
+  public type SubscriptionPlan = { #free; #paid };
+  public type StudentSubscription = {
+    plan : SubscriptionPlan;
+    paidUntil : ?Time.Time;
+    lastResetMonth : Int;
+  };
+
+  // Ad Banner state
+  let adBanners = Map.empty<Nat32, AdBanner>();
+  var nextAdBannerId : Nat = 1;
+
+  // Student subscriptions state
+  let studentSubscriptions = Map.empty<Principal, StudentSubscription>();
+
 
   // Type Aliases
   public type Profile = UserProfile.T;
@@ -670,6 +695,79 @@ actor {
   // Admin status
   public query ({ caller }) func getAdminStatus() : async Bool {
     accessControlState.adminAssigned;
+  };
+
+
+  // Ad Banner management
+  public query func getAdContent() : async [AdBanner] {
+    adBanners.values().toArray();
+  };
+
+  public shared ({ caller }) func addAdBanner(company : Text, tagline : Text, ctaText : Text, ctaUrl : Text) : async Nat32 {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can add ad banners");
+    };
+    let id = Nat32.fromNat(nextAdBannerId);
+    nextAdBannerId += 1;
+    let banner : AdBanner = { id; company; tagline; ctaText; ctaUrl };
+    adBanners.add(id, banner);
+    id;
+  };
+
+  public shared ({ caller }) func removeAdBanner(id : Nat32) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can remove ad banners");
+    };
+    adBanners.remove(id);
+  };
+
+  // Student subscription management
+  public query ({ caller }) func getMySubscription() : async StudentSubscription {
+    switch (studentSubscriptions.get(caller)) {
+      case (?sub) { sub };
+      case (null) {
+        {
+          plan = #free;
+          paidUntil = null;
+          lastResetMonth = 0;
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func createPaidPlanCheckout(successUrl : Text, cancelUrl : Text) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Must be logged in to upgrade");
+    };
+    let items : [Stripe.ShoppingItem] = [{
+      productName = "ExamGuide Premium";
+      productDescription = "Unlimited access to all ExamGuide features for 30 days";
+      priceInCents = 500;
+      currency = "usd";
+      quantity = 1;
+    }];
+    await Stripe.createCheckoutSession(getStripeConfiguration(), caller, items, successUrl, cancelUrl, transform);
+  };
+
+  public shared ({ caller }) func activatePaidPlan(stripeSessionId : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Must be logged in to activate plan");
+    };
+    let status = await Stripe.getSessionStatus(getStripeConfiguration(), stripeSessionId, transform);
+    switch (status) {
+      case (#completed(_)) {
+        let thirtyDays : Time.Time = 30 * 24 * 60 * 60 * 1_000_000_000;
+        let sub : StudentSubscription = {
+          plan = #paid;
+          paidUntil = ?(Time.now() + thirtyDays);
+          lastResetMonth = 0;
+        };
+        studentSubscriptions.add(caller, sub);
+      };
+      case (#failed(e)) {
+        Runtime.trap("Payment verification failed: " # e.error);
+      };
+    };
   };
 
   // Add more utility functions as needed

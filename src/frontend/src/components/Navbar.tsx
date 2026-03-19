@@ -5,6 +5,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   BookOpen,
   Compass,
+  Crown,
   GraduationCap,
   LogIn,
   LogOut,
@@ -19,6 +20,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { usePlanInfo } from "../hooks/usePlanInfo";
 import { useUserRole } from "../hooks/useUserRole";
 import RoleSelectionModal from "./RoleSelectionModal";
 
@@ -54,6 +56,7 @@ export default function Navbar() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const { role } = useUserRole();
+  const { isPaid } = usePlanInfo();
 
   const isLoggedIn = !!identity && !identity.getPrincipal().isAnonymous();
 
@@ -151,6 +154,12 @@ export default function Navbar() {
             {isLoggedIn ? (
               <>
                 <RolePill role={role} />
+                {isPaid && (
+                  <Badge className="h-5 px-1.5 text-xs bg-amber/20 border border-amber/40 text-amber gap-0.5 font-semibold">
+                    <Crown className="w-2.5 h-2.5" />
+                    Premium
+                  </Badge>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -272,6 +281,12 @@ export default function Navbar() {
                   {isLoggedIn ? (
                     <div className="flex items-center gap-2 mb-2 px-1">
                       <RolePill role={role} />
+                      {isPaid && (
+                        <Badge className="h-5 px-1.5 text-xs bg-amber/20 border border-amber/40 text-amber gap-0.5 font-semibold">
+                          <Crown className="w-2.5 h-2.5" />
+                          Premium
+                        </Badge>
+                      )}
                     </div>
                   ) : null}
                   {isLoggedIn ? (

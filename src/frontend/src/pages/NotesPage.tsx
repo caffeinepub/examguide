@@ -43,8 +43,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { StudyNote } from "../backend.d";
+import AdBannerStrip from "../components/AdBannerStrip";
+import UpgradeModal from "../components/UpgradeModal";
 import { SAMPLE_EXAM_CATEGORIES, formatTimestamp } from "../data/sampleData";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { usePlanInfo } from "../hooks/usePlanInfo";
 import {
   useCreateStudyNote,
   useDeleteStudyNote,
@@ -413,6 +416,8 @@ export default function NotesPage() {
   const { identity } = useInternetIdentity();
   const isLoggedIn = !!identity && !identity.getPrincipal().isAnonymous();
   const principal = identity?.getPrincipal();
+  const { isPaid } = usePlanInfo();
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -789,16 +794,30 @@ export default function NotesPage() {
                 Browse high-quality notes from top scorers worldwide
               </p>
             </div>
-            {isLoggedIn && (
-              <Button
-                onClick={openCreate}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 gap-2"
-                data-ocid="notes.add_button"
-              >
-                <Plus className="w-4 h-4" />
-                Add Note
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {isLoggedIn && !isPaid && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber/40 text-amber hover:bg-amber/10 gap-1.5 shrink-0"
+                  onClick={() => setUpgradeModalOpen(true)}
+                  data-ocid="notes.upgrade.button"
+                >
+                  <span>⭐</span>
+                  Upgrade to Premium
+                </Button>
+              )}
+              {isLoggedIn && (
+                <Button
+                  onClick={openCreate}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 gap-2"
+                  data-ocid="notes.add_button"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Note
+                </Button>
+              )}
+            </div>
           </div>
         </motion.div>
 
@@ -1197,6 +1216,15 @@ export default function NotesPage() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Ad Banner for free users */}
+      {!isPaid && <AdBannerStrip />}
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+      />
     </div>
   );
 }
