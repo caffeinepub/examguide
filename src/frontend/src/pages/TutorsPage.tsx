@@ -804,7 +804,7 @@ export default function TutorsPage() {
                 >
                   <div className="flex items-center gap-2 font-semibold text-amber-600 dark:text-amber-400">
                     <Info className="w-4 h-4 shrink-0" />
-                    Platform Fee Applies
+                    No Student Fees · 5% Tutor Fee
                   </div>
                   <div className="text-muted-foreground text-xs space-y-0.5 pl-6">
                     <div className="flex justify-between">
@@ -814,7 +814,7 @@ export default function TutorsPage() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>ExamGuide fee ({PLATFORM_FEE_PERCENT}%)</span>
+                      <span>ExamGuide fee (5% from tutor)</span>
                       <span className="font-medium text-amber-600 dark:text-amber-400">
                         $
                         {(

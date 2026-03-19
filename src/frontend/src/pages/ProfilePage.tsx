@@ -33,6 +33,7 @@ import {
   CheckCircle2,
   Clock,
   Compass,
+  Copy,
   CreditCard,
   Edit,
   GraduationCap,
@@ -467,7 +468,6 @@ export default function ProfilePage() {
   }
 
   const principalString = principal?.toString() ?? "Unknown";
-  const shortPrincipal = `${principalString.slice(0, 8)}...${principalString.slice(-6)}`;
   const avatarInitials = profile?.displayName
     ? profile.displayName
         .split(" ")
@@ -599,9 +599,27 @@ export default function ProfilePage() {
                           ))}
                         </div>
                       )}
-                    <p className="text-xs text-muted-foreground font-mono">
-                      {shortPrincipal}
+                    <p className="text-xs text-muted-foreground/60 uppercase tracking-wide font-medium">
+                      Your Principal ID
                     </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground font-mono break-all">
+                        {principalString}
+                      </p>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          navigator.clipboard.writeText(principalString);
+                          toast.success("Principal ID copied!");
+                        }}
+                        title="Copy Principal ID"
+                        data-ocid="profile.principal.button"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

@@ -488,7 +488,7 @@ export function useAdminStatus() {
 // ── Platform Fee & Transactions ───────────────────────────────
 
 // Platform fee constant (matches backend)
-export const PLATFORM_FEE_PERCENT = 35;
+export const PLATFORM_FEE_PERCENT = 5;
 
 export interface TransactionRecord {
   id: number;

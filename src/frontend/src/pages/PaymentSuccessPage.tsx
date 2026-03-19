@@ -141,13 +141,13 @@ export default function PaymentSuccessPage() {
                   </span>
                 </div>
                 <div className="flex justify-between text-amber-600 dark:text-amber-400">
-                  <span>ExamGuide fee (35%)</span>
-                  <span>${((amountCents * 0.35) / 100).toFixed(2)}</span>
+                  <span>ExamGuide fee (5% from tutor)</span>
+                  <span>${((amountCents * 0.05) / 100).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-green-600 dark:text-green-400 border-t border-border/40 pt-2">
                   <span>Tutor payout</span>
                   <span className="font-semibold">
-                    ${((amountCents * 0.65) / 100).toFixed(2)}
+                    ${((amountCents * 0.95) / 100).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -155,8 +155,8 @@ export default function PaymentSuccessPage() {
 
             {/* Platform fee note */}
             <p className="text-xs text-muted-foreground/60 mt-2 text-center">
-              ExamGuide retains 35% as a platform fee. The tutor receives the
-              remaining 65%.
+              ExamGuide retains a 5% platform fee from tutor earnings. Students
+              pay no fees. The tutor receives 95% of the session price.
             </p>
           </motion.div>
         )}

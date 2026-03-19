@@ -41,8 +41,8 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import AdminGuard from "../components/AdminGuard";
 import { useActor } from "../hooks/useActor";
+import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddExamCategory,
   useAdminStatus,
@@ -101,6 +101,9 @@ function StatCard({
 
 // ── Main Component ────────────────────────────────────────────
 export default function AdminPage() {
+  const { identity, isInitializing, login } = useInternetIdentity();
+  const isLoggedIn = !!identity;
+
   const { data: role, isLoading: roleLoading } = useCallerRole();
   const isAdmin = role === "admin";
 
@@ -247,774 +250,839 @@ export default function AdminPage() {
     }
   };
 
-  return (
-    <AdminGuard>
+  // ── State 1: Initializing ──────────────────────────────────
+  if (isInitializing || (isLoggedIn && roleLoading)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // ── State 2: Not logged in ─────────────────────────────────
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-sm w-full text-center space-y-6"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto">
+            <Shield className="w-8 h-8 text-primary" />
+          </div>
+          <div>
+            <h1 className="font-display text-2xl font-bold text-foreground mb-2">
+              Sign In Required
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              You need to sign in to access the Admin page.
+            </p>
+          </div>
+          <Button
+            onClick={login}
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+            data-ocid="admin.signin.primary_button"
+          >
+            <Shield className="w-4 h-4" />
+            Sign In
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ── State 3: Logged in, not admin, no admin yet ────────────
+  if (!isAdmin && !adminAlreadyAssigned) {
+    return (
       <div className="min-h-screen py-10">
         <div className="container mx-auto px-4">
           <motion.div
-            className="max-w-4xl mx-auto space-y-8"
+            className="max-w-lg mx-auto"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            {/* ── Page Header ───────────────────────────────────── */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 mb-8">
               <div className="w-12 h-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center">
                 <Shield className="w-6 h-6 text-primary" />
               </div>
               <div>
                 <h1 className="font-display text-3xl font-bold text-foreground">
-                  Admin Dashboard
+                  Admin Setup
                 </h1>
                 <p className="text-muted-foreground text-sm mt-0.5">
-                  Platform management and configuration
+                  Claim admin access to manage the platform
                 </p>
               </div>
             </div>
 
-            {/* ── Admin Access Status ────────────────────────────── */}
-            <section data-ocid="admin.access.section">
-              {roleLoading ? (
-                <div
-                  className="p-5 rounded-2xl bg-card border border-border/60"
-                  data-ocid="admin.access.loading_state"
-                >
-                  <Skeleton className="h-12 w-full" />
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-6 rounded-2xl bg-card border border-primary/30 shadow-sm"
+              data-ocid="admin.claim.panel"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
+                  <Shield className="w-5 h-5 text-primary" />
                 </div>
-              ) : isAdmin ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex items-center gap-4 p-5 rounded-2xl bg-teal/8 border border-teal/30"
-                  data-ocid="admin.access.success_state"
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-display font-bold text-foreground text-base mb-1">
+                    Claim Admin Access
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+                    No admin has been assigned yet. Click below to claim admin
+                    access for your account.
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        await claimAdmin.mutateAsync();
+                        toast.success("Admin access granted!");
+                      } catch {
+                        toast.error(
+                          "Failed to claim admin access. It may have already been claimed.",
+                        );
+                      }
+                    }}
+                    disabled={claimAdmin.isPending}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                    data-ocid="admin.claim_admin.primary_button"
+                  >
+                    {claimAdmin.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Shield className="w-4 h-4" />
+                    )}
+                    Claim Admin Access
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── State 4: Logged in, not admin, admin already assigned ──
+  if (!isAdmin && adminAlreadyAssigned) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-sm w-full text-center space-y-6"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center mx-auto">
+            <Shield className="w-8 h-8 text-destructive" />
+          </div>
+          <div>
+            <h1 className="font-display text-2xl font-bold text-foreground mb-2">
+              Access Denied
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              You do not have admin access. Admin has already been assigned to
+              another account.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="w-full border-border/60"
+            onClick={() => {
+              window.location.href = "/";
+            }}
+            data-ocid="admin.access_denied.link"
+          >
+            Back to Home
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ── State 5: Full Admin Dashboard ─────────────────────────
+  return (
+    <div className="min-h-screen py-10">
+      <div className="container mx-auto px-4">
+        <motion.div
+          className="max-w-4xl mx-auto space-y-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          {/* ── Page Header ───────────────────────────────────── */}
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center">
+              <Shield className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="font-display text-3xl font-bold text-foreground">
+                Admin Dashboard
+              </h1>
+              <p className="text-muted-foreground text-sm mt-0.5">
+                Platform management and configuration
+              </p>
+            </div>
+          </div>
+
+          {/* ── Admin Access Status ────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex items-center gap-4 p-5 rounded-2xl bg-teal/8 border border-teal/30"
+            data-ocid="admin.access.success_state"
+          >
+            <CheckCircle2 className="w-6 h-6 text-teal shrink-0" />
+            <div>
+              <p className="font-semibold text-teal text-sm">
+                You have admin access
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                All platform management controls are active and functional.
+              </p>
+            </div>
+            <Badge
+              variant="outline"
+              className="ml-auto border-teal/40 bg-teal/10 text-teal text-xs shrink-0"
+            >
+              <Shield className="w-3 h-3 mr-1" />
+              Admin
+            </Badge>
+          </motion.div>
+
+          {/* ── Platform Stats ─────────────────────────────────── */}
+          <section data-ocid="admin.stats.section">
+            <h2 className="font-display text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              Platform Overview
+            </h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard
+                title="Study Notes"
+                value={notes?.length}
+                isLoading={notesLoading}
+                icon={BookOpen}
+                color="text-teal"
+                bg="bg-teal/10 border-teal/20"
+              />
+              <StatCard
+                title="Guidance Posts"
+                value={posts?.length}
+                isLoading={postsLoading}
+                icon={Compass}
+                color="text-chart-4"
+                bg="bg-chart-4/10 border-chart-4/20"
+              />
+              <StatCard
+                title="Tutors & Mentors"
+                value={tutors?.length}
+                isLoading={tutorsLoading}
+                icon={Users}
+                color="text-primary"
+                bg="bg-primary/10 border-primary/20"
+              />
+              <StatCard
+                title="Exam Categories"
+                value={categories?.length}
+                isLoading={categoriesLoading}
+                icon={BookOpen}
+                color="text-chart-5"
+                bg="bg-chart-5/10 border-chart-5/20"
+              />
+            </div>
+          </section>
+
+          {/* ── Exam Categories Management ──────────────────────── */}
+          <section data-ocid="admin.categories.section">
+            <h2 className="font-display text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-primary" />
+              Exam Categories
+            </h2>
+
+            <div className="rounded-2xl bg-card border border-border/60 overflow-hidden">
+              {/* Add Category Form */}
+              <div className="p-5 border-b border-border/60 bg-surface-1/50">
+                <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-1.5">
+                  <Plus className="w-4 h-4 text-primary" />
+                  Add New Category
+                </h3>
+                <form
+                  onSubmit={handleAddCategory}
+                  className="flex flex-col sm:flex-row gap-3"
                 >
-                  <CheckCircle2 className="w-6 h-6 text-teal shrink-0" />
+                  <div className="flex-1">
+                    <Input
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      placeholder="Category name (e.g. SAT, IELTS, JEE)"
+                      className="bg-surface-2 border-border/60 text-sm"
+                      data-ocid="admin.categories.input"
+                    />
+                  </div>
+                  <div className="flex-[1.5]">
+                    <Input
+                      value={newCatDesc}
+                      onChange={(e) => setNewCatDesc(e.target.value)}
+                      placeholder="Short description"
+                      className="bg-surface-2 border-border/60 text-sm"
+                      data-ocid="admin.categories.description.input"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={addCategory.isPending || !newCatName.trim()}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 shrink-0"
+                    data-ocid="admin.categories.submit_button"
+                  >
+                    {addCategory.isPending ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="w-3.5 h-3.5" />
+                    )}
+                    Add
+                  </Button>
+                </form>
+              </div>
+
+              {/* Category List */}
+              {categoriesLoading ? (
+                <div
+                  className="p-5 space-y-3"
+                  data-ocid="admin.categories.loading_state"
+                >
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : !categories || categories.length === 0 ? (
+                <div
+                  className="text-center py-12 text-muted-foreground text-sm"
+                  data-ocid="admin.categories.empty_state"
+                >
+                  <BookOpen className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
+                  No exam categories yet. Add the first one above.
+                </div>
+              ) : (
+                <Table data-ocid="admin.categories.table">
+                  <TableHeader>
+                    <TableRow className="border-border/60 hover:bg-transparent">
+                      <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide pl-5">
+                        Name
+                      </TableHead>
+                      <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide">
+                        Description
+                      </TableHead>
+                      <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide w-16 text-right pr-5">
+                        Action
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {categories.map((cat, i) => (
+                      <TableRow
+                        key={cat.id}
+                        className="border-border/50 hover:bg-surface-2/50 transition-colors"
+                        data-ocid={`admin.categories.item.${i + 1}`}
+                      >
+                        <TableCell className="pl-5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary/70 shrink-0" />
+                            <span className="font-medium text-foreground text-sm">
+                              {cat.name}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {cat.description || (
+                            <span className="italic opacity-50">
+                              No description
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right pr-5">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            onClick={() => setDeleteCatId(cat.id)}
+                            data-ocid={`admin.categories.delete_button.${i + 1}`}
+                            aria-label={`Delete ${cat.name}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </section>
+
+          {/* ── Stripe Configuration ────────────────────────────── */}
+          <section data-ocid="admin.stripe.section">
+            <h2 className="font-display text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-primary" />
+              Stripe Configuration
+            </h2>
+
+            <div className="p-6 rounded-2xl bg-card border border-border/60">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                  <CreditCard className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-foreground">
+                    Payment Gateway
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Enable paid tutor sessions on ExamGuide
+                  </p>
+                </div>
+              </div>
+
+              <Separator className="my-5 bg-border/50" />
+
+              {stripeConfigured ? (
+                <div
+                  className="flex items-center gap-3 p-4 rounded-xl bg-teal/8 border border-teal/25"
+                  data-ocid="admin.stripe.success_state"
+                >
+                  <CheckCircle2 className="w-5 h-5 text-teal shrink-0" />
                   <div>
-                    <p className="font-semibold text-teal text-sm">
-                      You have admin access
+                    <p className="text-sm font-semibold text-teal">
+                      Stripe is configured and active
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      All platform management controls are active and
-                      functional.
+                      Students can now pay tutors directly through ExamGuide.
                     </p>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className="ml-auto border-teal/40 bg-teal/10 text-teal text-xs shrink-0"
-                  >
-                    <Shield className="w-3 h-3 mr-1" />
-                    Admin
-                  </Badge>
-                </motion.div>
-              ) : adminAlreadyAssigned ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-6 rounded-2xl bg-card border border-destructive/30 shadow-sm"
-                  data-ocid="admin.access.error_state"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-destructive/10 border border-destructive/25 flex items-center justify-center shrink-0">
-                      <Shield className="w-5 h-5 text-destructive" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-display font-bold text-foreground text-base mb-1">
-                        Admin Already Assigned
-                      </h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        Admin access has already been claimed by another
-                        account. If you are the app owner, make sure you are
-                        logged in with the correct Internet Identity account
-                        that first signed in.
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-6 rounded-2xl bg-card border border-primary/30 shadow-sm"
-                  data-ocid="admin.claim.panel"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
-                      <Shield className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-display font-bold text-foreground text-base mb-1">
-                        Claim Admin Access
-                      </h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                        No admin has been assigned yet. Click below to claim
-                        admin access for your account.
-                      </p>
-                      <Button
-                        onClick={async () => {
-                          try {
-                            await claimAdmin.mutateAsync();
-                            toast.success("Admin access granted!");
-                          } catch {
-                            toast.error(
-                              "Failed to claim admin access. It may have already been claimed.",
-                            );
-                          }
-                        }}
-                        disabled={claimAdmin.isPending}
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-                        data-ocid="admin.claim_admin.primary_button"
-                      >
-                        {claimAdmin.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Shield className="w-4 h-4" />
-                        )}
-                        Claim Admin Access
-                      </Button>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </section>
-
-            {/* ── Platform Stats ─────────────────────────────────── */}
-            <section data-ocid="admin.stats.section">
-              <h2 className="font-display text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                Platform Overview
-              </h2>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
-                  title="Study Notes"
-                  value={notes?.length}
-                  isLoading={notesLoading}
-                  icon={BookOpen}
-                  color="text-teal"
-                  bg="bg-teal/10 border-teal/20"
-                />
-                <StatCard
-                  title="Guidance Posts"
-                  value={posts?.length}
-                  isLoading={postsLoading}
-                  icon={Compass}
-                  color="text-chart-4"
-                  bg="bg-chart-4/10 border-chart-4/20"
-                />
-                <StatCard
-                  title="Tutors & Mentors"
-                  value={tutors?.length}
-                  isLoading={tutorsLoading}
-                  icon={Users}
-                  color="text-primary"
-                  bg="bg-primary/10 border-primary/20"
-                />
-                <StatCard
-                  title="Exam Categories"
-                  value={categories?.length}
-                  isLoading={categoriesLoading}
-                  icon={BookOpen}
-                  color="text-chart-5"
-                  bg="bg-chart-5/10 border-chart-5/20"
-                />
-              </div>
-            </section>
-
-            {/* ── Exam Categories Management ──────────────────────── */}
-            <section data-ocid="admin.categories.section">
-              <h2 className="font-display text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-primary" />
-                Exam Categories
-              </h2>
-
-              <div className="rounded-2xl bg-card border border-border/60 overflow-hidden">
-                {/* Add Category Form */}
-                <div className="p-5 border-b border-border/60 bg-surface-1/50">
-                  <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-1.5">
-                    <Plus className="w-4 h-4 text-primary" />
-                    Add New Category
-                  </h3>
-                  <form
-                    onSubmit={handleAddCategory}
-                    className="flex flex-col sm:flex-row gap-3"
-                  >
-                    <div className="flex-1">
-                      <Input
-                        value={newCatName}
-                        onChange={(e) => setNewCatName(e.target.value)}
-                        placeholder="Category name (e.g. SAT, IELTS, JEE)"
-                        className="bg-surface-2 border-border/60 text-sm"
-                        data-ocid="admin.categories.input"
-                      />
-                    </div>
-                    <div className="flex-[1.5]">
-                      <Input
-                        value={newCatDesc}
-                        onChange={(e) => setNewCatDesc(e.target.value)}
-                        placeholder="Short description"
-                        className="bg-surface-2 border-border/60 text-sm"
-                        data-ocid="admin.categories.description.input"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      disabled={addCategory.isPending || !newCatName.trim()}
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 shrink-0"
-                      data-ocid="admin.categories.submit_button"
-                    >
-                      {addCategory.isPending ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Plus className="w-3.5 h-3.5" />
-                      )}
-                      Add
-                    </Button>
-                  </form>
                 </div>
+              ) : (
+                <div className="space-y-4">
+                  <div
+                    className="p-4 rounded-xl bg-chart-4/8 border border-chart-4/25 text-sm text-chart-4 font-medium"
+                    data-ocid="admin.stripe.error_state"
+                  >
+                    Stripe is not yet configured. Add your keys below to enable
+                    payments.
+                  </div>
 
-                {/* Category List */}
-                {categoriesLoading ? (
-                  <div
-                    className="p-5 space-y-3"
-                    data-ocid="admin.categories.loading_state"
-                  >
-                    {[1, 2, 3].map((i) => (
-                      <Skeleton key={i} className="h-12 w-full" />
-                    ))}
+                  <div>
+                    <Label className="text-sm font-medium text-foreground mb-1.5 block">
+                      Stripe Secret Key
+                    </Label>
+                    <Input
+                      type="password"
+                      value={stripeKey}
+                      onChange={(e) => setStripeKey(e.target.value)}
+                      placeholder="sk_live_..."
+                      className="bg-surface-2 border-border/60 font-mono text-sm"
+                      data-ocid="admin.stripe.input"
+                      autoComplete="off"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Find this in your Stripe Dashboard → Developers → API
+                      keys.
+                    </p>
                   </div>
-                ) : !categories || categories.length === 0 ? (
-                  <div
-                    className="text-center py-12 text-muted-foreground text-sm"
-                    data-ocid="admin.categories.empty_state"
-                  >
-                    <BookOpen className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
-                    No exam categories yet. Add the first one above.
+
+                  <div>
+                    <Label className="text-sm font-medium text-foreground mb-1.5 block">
+                      Allowed Countries (comma-separated)
+                    </Label>
+                    <Input
+                      value={stripeCountries}
+                      onChange={(e) => setStripeCountries(e.target.value)}
+                      placeholder="US,CA,GB,AU"
+                      className="bg-surface-2 border-border/60"
+                      data-ocid="admin.stripe.countries.input"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ISO 3166-1 alpha-2 country codes, e.g. US, CA, GB, IN.
+                    </p>
                   </div>
-                ) : (
-                  <Table data-ocid="admin.categories.table">
+
+                  <Button
+                    onClick={handleSaveStripe}
+                    disabled={setStripeConfig.isPending}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                    data-ocid="admin.stripe.save.button"
+                  >
+                    {setStripeConfig.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    Save Stripe Configuration
+                  </Button>
+                </div>
+              )}
+
+              <Separator className="my-5 bg-border/50" />
+
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                <span className="font-medium text-foreground/80">
+                  How it works:{" "}
+                </span>
+                Tutors on ExamGuide earn money when students book paid sessions.
+                Each tutor sets their hourly rate on their profile. Configure
+                your Stripe keys above to enable the payment flow for all
+                tutors.
+              </p>
+            </div>
+          </section>
+
+          {/* ── Transaction History ─────────────────────────────── */}
+          <section data-ocid="admin.transactions.section">
+            <h2 className="font-display text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-primary" />
+              Transaction History
+            </h2>
+
+            <div className="rounded-2xl bg-card border border-border/60 overflow-hidden">
+              {transactionsLoading ? (
+                <div
+                  className="p-5 space-y-3"
+                  data-ocid="admin.transactions.loading_state"
+                >
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : !allTransactions || allTransactions.length === 0 ? (
+                <div
+                  className="text-center py-12 text-muted-foreground text-sm"
+                  data-ocid="admin.transactions.empty_state"
+                >
+                  <Receipt className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
+                  <p className="font-medium">No transactions yet</p>
+                  <p className="text-xs mt-1 text-muted-foreground/60">
+                    Paid session bookings will appear here
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary bar */}
+                  <div className="px-5 py-3 border-b border-border/60 bg-surface-1/50 flex flex-wrap gap-6 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">
+                        Total Revenue
+                      </span>
+                      <span className="ml-2 font-semibold text-foreground">
+                        $
+                        {(
+                          allTransactions.reduce(
+                            (s, t) => s + t.totalAmount,
+                            0,
+                          ) / 100
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">
+                        Platform Earnings (5% from tutors)
+                      </span>
+                      <span className="ml-2 font-semibold text-amber-600 dark:text-amber-400">
+                        $
+                        {(
+                          allTransactions.reduce(
+                            (s, t) => s + t.platformFeeAmount,
+                            0,
+                          ) / 100
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">
+                        Tutor Payouts (95%)
+                      </span>
+                      <span className="ml-2 font-semibold text-green-600 dark:text-green-400">
+                        $
+                        {(
+                          allTransactions.reduce(
+                            (s, t) => s + (t.totalAmount - t.platformFeeAmount),
+                            0,
+                          ) / 100
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Table data-ocid="admin.transactions.table">
                     <TableHeader>
                       <TableRow className="border-border/60 hover:bg-transparent">
                         <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide pl-5">
-                          Name
+                          Session
                         </TableHead>
                         <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide">
-                          Description
+                          Tutor
                         </TableHead>
-                        <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide w-16 text-right pr-5">
-                          Action
+                        <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide text-right">
+                          Total Paid
+                        </TableHead>
+                        <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide text-right">
+                          Platform Fee (5%)
+                        </TableHead>
+                        <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide text-right pr-5">
+                          Tutor Payout
                         </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {categories.map((cat, i) => (
+                      {allTransactions.map((tx, i) => (
                         <TableRow
-                          key={cat.id}
+                          key={tx.id}
                           className="border-border/50 hover:bg-surface-2/50 transition-colors"
-                          data-ocid={`admin.categories.item.${i + 1}`}
+                          data-ocid={`admin.transactions.item.${i + 1}`}
                         >
                           <TableCell className="pl-5">
-                            <div className="flex items-center gap-2">
-                              <div className="w-1.5 h-1.5 rounded-full bg-primary/70 shrink-0" />
-                              <span className="font-medium text-foreground text-sm">
-                                {cat.name}
-                              </span>
+                            <div className="text-sm font-medium text-foreground">
+                              {tx.sessionType}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(
+                                Number(tx.timestamp) / 1_000_000,
+                              ).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
                             </div>
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {cat.description || (
-                              <span className="italic opacity-50">
-                                No description
-                              </span>
-                            )}
+                          <TableCell className="text-sm text-foreground">
+                            {tx.tutorName}
                           </TableCell>
-                          <TableCell className="text-right pr-5">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                              onClick={() => setDeleteCatId(cat.id)}
-                              data-ocid={`admin.categories.delete_button.${i + 1}`}
-                              aria-label={`Delete ${cat.name}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                          <TableCell className="text-sm font-medium text-foreground text-right">
+                            ${(tx.totalAmount / 100).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-sm font-medium text-amber-600 dark:text-amber-400 text-right">
+                            ${(tx.platformFeeAmount / 100).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-sm font-medium text-green-600 dark:text-green-400 text-right pr-5">
+                            $
+                            {(
+                              (tx.totalAmount - tx.platformFeeAmount) /
+                              100
+                            ).toFixed(2)}
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
-                )}
-              </div>
-            </section>
-
-            {/* ── Stripe Configuration ────────────────────────────── */}
-            <section data-ocid="admin.stripe.section">
-              <h2 className="font-display text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-primary" />
-                Stripe Configuration
-              </h2>
-
-              <div className="p-6 rounded-2xl bg-card border border-border/60">
-                <div className="flex items-center gap-3 mb-1">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                    <CreditCard className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-display font-bold text-foreground">
-                      Payment Gateway
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Enable paid tutor sessions on ExamGuide
-                    </p>
-                  </div>
-                </div>
-
-                <Separator className="my-5 bg-border/50" />
-
-                {stripeConfigured ? (
-                  <div
-                    className="flex items-center gap-3 p-4 rounded-xl bg-teal/8 border border-teal/25"
-                    data-ocid="admin.stripe.success_state"
-                  >
-                    <CheckCircle2 className="w-5 h-5 text-teal shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-teal">
-                        Stripe is configured and active
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Students can now pay tutors directly through ExamGuide.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div
-                      className="p-4 rounded-xl bg-chart-4/8 border border-chart-4/25 text-sm text-chart-4 font-medium"
-                      data-ocid="admin.stripe.error_state"
-                    >
-                      Stripe is not yet configured. Add your keys below to
-                      enable payments.
-                    </div>
-
-                    <div>
-                      <Label className="text-sm font-medium text-foreground mb-1.5 block">
-                        Stripe Secret Key
-                      </Label>
-                      <Input
-                        type="password"
-                        value={stripeKey}
-                        onChange={(e) => setStripeKey(e.target.value)}
-                        placeholder="sk_live_..."
-                        className="bg-surface-2 border-border/60 font-mono text-sm"
-                        data-ocid="admin.stripe.input"
-                        autoComplete="off"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Find this in your Stripe Dashboard → Developers → API
-                        keys.
-                      </p>
-                    </div>
-
-                    <div>
-                      <Label className="text-sm font-medium text-foreground mb-1.5 block">
-                        Allowed Countries (comma-separated)
-                      </Label>
-                      <Input
-                        value={stripeCountries}
-                        onChange={(e) => setStripeCountries(e.target.value)}
-                        placeholder="US,CA,GB,AU"
-                        className="bg-surface-2 border-border/60"
-                        data-ocid="admin.stripe.countries.input"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        ISO 3166-1 alpha-2 country codes, e.g. US, CA, GB, IN.
-                      </p>
-                    </div>
-
-                    <Button
-                      onClick={handleSaveStripe}
-                      disabled={setStripeConfig.isPending}
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-                      data-ocid="admin.stripe.save.button"
-                    >
-                      {setStripeConfig.isPending ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Save className="w-4 h-4" />
-                      )}
-                      Save Stripe Configuration
-                    </Button>
-                  </div>
-                )}
-
-                <Separator className="my-5 bg-border/50" />
-
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  <span className="font-medium text-foreground/80">
-                    How it works:{" "}
-                  </span>
-                  Tutors on ExamGuide earn money when students book paid
-                  sessions. Each tutor sets their hourly rate on their profile.
-                  Configure your Stripe keys above to enable the payment flow
-                  for all tutors.
-                </p>
-              </div>
-            </section>
-
-            {/* ── Admin Tools Info ────────────────────────────────── */}
-            {/* ── Transaction History ─────────────────────────────── */}
-            <section data-ocid="admin.transactions.section">
-              <h2 className="font-display text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-primary" />
-                Transaction History
-              </h2>
-
-              <div className="rounded-2xl bg-card border border-border/60 overflow-hidden">
-                {transactionsLoading ? (
-                  <div
-                    className="p-5 space-y-3"
-                    data-ocid="admin.transactions.loading_state"
-                  >
-                    {[1, 2, 3].map((i) => (
-                      <Skeleton key={i} className="h-12 w-full" />
-                    ))}
-                  </div>
-                ) : !allTransactions || allTransactions.length === 0 ? (
-                  <div
-                    className="text-center py-12 text-muted-foreground text-sm"
-                    data-ocid="admin.transactions.empty_state"
-                  >
-                    <Receipt className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
-                    <p className="font-medium">No transactions yet</p>
-                    <p className="text-xs mt-1 text-muted-foreground/60">
-                      Paid session bookings will appear here
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Summary bar */}
-                    <div className="px-5 py-3 border-b border-border/60 bg-surface-1/50 flex flex-wrap gap-6 text-xs">
-                      <div>
-                        <span className="text-muted-foreground">
-                          Total Revenue
-                        </span>
-                        <span className="ml-2 font-semibold text-foreground">
-                          $
-                          {(
-                            allTransactions.reduce(
-                              (s, t) => s + t.totalAmount,
-                              0,
-                            ) / 100
-                          ).toFixed(2)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">
-                          Platform Earnings (35%)
-                        </span>
-                        <span className="ml-2 font-semibold text-amber-600 dark:text-amber-400">
-                          $
-                          {(
-                            allTransactions.reduce(
-                              (s, t) => s + t.platformFeeAmount,
-                              0,
-                            ) / 100
-                          ).toFixed(2)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">
-                          Tutor Payouts (65%)
-                        </span>
-                        <span className="ml-2 font-semibold text-green-600 dark:text-green-400">
-                          $
-                          {(
-                            allTransactions.reduce(
-                              (s, t) =>
-                                s + (t.totalAmount - t.platformFeeAmount),
-                              0,
-                            ) / 100
-                          ).toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Table data-ocid="admin.transactions.table">
-                      <TableHeader>
-                        <TableRow className="border-border/60 hover:bg-transparent">
-                          <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide pl-5">
-                            Session
-                          </TableHead>
-                          <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide">
-                            Tutor
-                          </TableHead>
-                          <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide text-right">
-                            Total Paid
-                          </TableHead>
-                          <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide text-right">
-                            Platform Fee (35%)
-                          </TableHead>
-                          <TableHead className="text-muted-foreground font-medium text-xs uppercase tracking-wide text-right pr-5">
-                            Tutor Payout
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {allTransactions.map((tx, i) => (
-                          <TableRow
-                            key={tx.id}
-                            className="border-border/50 hover:bg-surface-2/50 transition-colors"
-                            data-ocid={`admin.transactions.item.${i + 1}`}
-                          >
-                            <TableCell className="pl-5">
-                              <div className="text-sm font-medium text-foreground">
-                                {tx.sessionType}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {new Date(
-                                  Number(tx.timestamp) / 1_000_000,
-                                ).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                })}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-sm text-foreground">
-                              {tx.tutorName}
-                            </TableCell>
-                            <TableCell className="text-sm font-medium text-foreground text-right">
-                              ${(tx.totalAmount / 100).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-sm font-medium text-amber-600 dark:text-amber-400 text-right">
-                              ${(tx.platformFeeAmount / 100).toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-sm font-medium text-green-600 dark:text-green-400 text-right pr-5">
-                              $
-                              {(
-                                (tx.totalAmount - tx.platformFeeAmount) /
-                                100
-                              ).toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </>
-                )}
-              </div>
-            </section>
-          </motion.div>
-        </div>
-
-        {/* Ad Management Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35, duration: 0.5 }}
-          className="mt-8"
-        >
-          <section className="rounded-2xl bg-card border border-border/60 overflow-hidden">
-            <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber/10 border border-amber/30 flex items-center justify-center">
-                  <Megaphone className="w-4 h-4 text-amber" />
-                </div>
-                <h2 className="font-display text-lg font-semibold">
-                  Ad Management
-                </h2>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-border/60 gap-1.5"
-                onClick={loadAds}
-                data-ocid="admin.ads.load_button"
-              >
-                Load Ads
-              </Button>
-            </div>
-            <div className="p-6 space-y-6">
-              {/* Add Banner Form */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-foreground">
-                  Add New Banner
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">
-                      Company Name
-                    </Label>
-                    <Input
-                      value={adCompany}
-                      onChange={(e) => setAdCompany(e.target.value)}
-                      placeholder="e.g. Unacademy"
-                      className="bg-surface-2 border-border/60"
-                      data-ocid="ad_management.company_input"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">
-                      Tagline
-                    </Label>
-                    <Input
-                      value={adTagline}
-                      onChange={(e) => setAdTagline(e.target.value)}
-                      placeholder="e.g. India's largest learning platform"
-                      className="bg-surface-2 border-border/60"
-                      data-ocid="ad_management.tagline_input"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">
-                      CTA Button Text
-                    </Label>
-                    <Input
-                      value={adCtaText}
-                      onChange={(e) => setAdCtaText(e.target.value)}
-                      placeholder="e.g. Explore Courses"
-                      className="bg-surface-2 border-border/60"
-                      data-ocid="ad_management.ctaText_input"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">
-                      CTA URL
-                    </Label>
-                    <Input
-                      value={adCtaUrl}
-                      onChange={(e) => setAdCtaUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="bg-surface-2 border-border/60"
-                      data-ocid="ad_management.ctaUrl_input"
-                    />
-                  </div>
-                </div>
-                <Button
-                  onClick={handleAddBanner}
-                  disabled={adAdding}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-                  data-ocid="ad_management.add_button"
-                >
-                  {adAdding ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Plus className="w-4 h-4" />
-                  )}
-                  Add Banner
-                </Button>
-              </div>
-
-              <Separator className="bg-border/50" />
-
-              {/* Current banners list */}
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-3">
-                  Current Banners
-                </h3>
-                {adsLoading ? (
-                  <div
-                    className="space-y-2"
-                    data-ocid="admin.ads.loading_state"
-                  >
-                    <Skeleton className="h-12 w-full rounded-lg" />
-                    <Skeleton className="h-12 w-full rounded-lg" />
-                  </div>
-                ) : ads.length === 0 ? (
-                  <div
-                    className="text-center py-8 text-muted-foreground text-sm"
-                    data-ocid="admin.ads.empty_state"
-                  >
-                    No ad banners yet. Click "Load Ads" to refresh or add one
-                    above.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {ads.map((ad, i) => (
-                      <div
-                        key={ad.id}
-                        className="flex items-center gap-3 p-3 rounded-xl bg-surface-2 border border-border/50"
-                        data-ocid={`admin.ads.item.${i + 1}`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-foreground">
-                            {ad.company}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {ad.tagline}
-                          </p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className="text-xs border-border/50 shrink-0"
-                        >
-                          {ad.ctaText}
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-                          onClick={() => handleRemoveBanner(ad.id)}
-                          disabled={adRemoving === ad.id}
-                          data-ocid={`ad_management.remove_button.${i + 1}`}
-                        >
-                          {adRemoving === ad.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-3.5 h-3.5" />
-                          )}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           </section>
         </motion.div>
-
-        {/* Delete Category Confirmation */}
-        <AlertDialog
-          open={deleteCatId !== null}
-          onOpenChange={(o) => !o && setDeleteCatId(null)}
-        >
-          <AlertDialogContent
-            className="bg-card border-border/60"
-            data-ocid="admin.delete_category.dialog"
-          >
-            <AlertDialogHeader>
-              <AlertDialogTitle className="font-display">
-                Delete Category?
-              </AlertDialogTitle>
-              <AlertDialogDescription className="text-muted-foreground">
-                This will permanently remove the exam category. Notes and posts
-                in this category may be affected.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel
-                className="border-border/60"
-                data-ocid="admin.delete_category.cancel_button"
-                onClick={() => setDeleteCatId(null)}
-              >
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                data-ocid="admin.delete_category.confirm_button"
-                onClick={() => {
-                  // Backend doesn't expose deleteExamCategory in d.ts, so we show a toast
-                  toast.info(
-                    "Category deletion is not available in this version",
-                  );
-                  setDeleteCatId(null);
-                }}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
-    </AdminGuard>
+
+      {/* Ad Management Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35, duration: 0.5 }}
+        className="mt-8"
+      >
+        <section className="rounded-2xl bg-card border border-border/60 overflow-hidden">
+          <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber/10 border border-amber/30 flex items-center justify-center">
+                <Megaphone className="w-4 h-4 text-amber" />
+              </div>
+              <h2 className="font-display text-lg font-semibold">
+                Ad Management
+              </h2>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-border/60 gap-1.5"
+              onClick={loadAds}
+              data-ocid="admin.ads.load_button"
+            >
+              Load Ads
+            </Button>
+          </div>
+          <div className="p-6 space-y-6">
+            {/* Add Banner Form */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-foreground">
+                Add New Banner
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Company Name
+                  </Label>
+                  <Input
+                    value={adCompany}
+                    onChange={(e) => setAdCompany(e.target.value)}
+                    placeholder="e.g. Unacademy"
+                    className="bg-surface-2 border-border/60"
+                    data-ocid="ad_management.company_input"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Tagline
+                  </Label>
+                  <Input
+                    value={adTagline}
+                    onChange={(e) => setAdTagline(e.target.value)}
+                    placeholder="e.g. India's largest learning platform"
+                    className="bg-surface-2 border-border/60"
+                    data-ocid="ad_management.tagline_input"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    CTA Button Text
+                  </Label>
+                  <Input
+                    value={adCtaText}
+                    onChange={(e) => setAdCtaText(e.target.value)}
+                    placeholder="e.g. Explore Courses"
+                    className="bg-surface-2 border-border/60"
+                    data-ocid="ad_management.ctaText_input"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    CTA URL
+                  </Label>
+                  <Input
+                    value={adCtaUrl}
+                    onChange={(e) => setAdCtaUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="bg-surface-2 border-border/60"
+                    data-ocid="ad_management.ctaUrl_input"
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={handleAddBanner}
+                disabled={adAdding}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                data-ocid="ad_management.add_button"
+              >
+                {adAdding ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                Add Banner
+              </Button>
+            </div>
+
+            <Separator className="bg-border/50" />
+
+            {/* Current banners list */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-3">
+                Current Banners
+              </h3>
+              {adsLoading ? (
+                <div className="space-y-2" data-ocid="admin.ads.loading_state">
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                </div>
+              ) : ads.length === 0 ? (
+                <div
+                  className="text-center py-8 text-muted-foreground text-sm"
+                  data-ocid="admin.ads.empty_state"
+                >
+                  No ad banners yet. Click "Load Ads" to refresh or add one
+                  above.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {ads.map((ad, i) => (
+                    <div
+                      key={ad.id}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-surface-2 border border-border/50"
+                      data-ocid={`admin.ads.item.${i + 1}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground">
+                          {ad.company}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {ad.tagline}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-border/50 shrink-0"
+                      >
+                        {ad.ctaText}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                        onClick={() => handleRemoveBanner(ad.id)}
+                        disabled={adRemoving === ad.id}
+                        data-ocid={`ad_management.remove_button.${i + 1}`}
+                      >
+                        {adRemoving === ad.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </motion.div>
+
+      {/* Delete Category Confirmation */}
+      <AlertDialog
+        open={deleteCatId !== null}
+        onOpenChange={(o) => !o && setDeleteCatId(null)}
+      >
+        <AlertDialogContent
+          className="bg-card border-border/60"
+          data-ocid="admin.delete_category.dialog"
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">
+              Delete Category?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This will permanently remove the exam category. Notes and posts in
+              this category may be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="border-border/60"
+              data-ocid="admin.delete_category.cancel_button"
+              onClick={() => setDeleteCatId(null)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-ocid="admin.delete_category.confirm_button"
+              onClick={() => {
+                toast.info(
+                  "Category deletion is not available in this version",
+                );
+                setDeleteCatId(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }

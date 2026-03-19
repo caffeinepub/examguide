@@ -102,14 +102,14 @@ function TransactionSummary({
       bg: "bg-primary/10 border-primary/20",
     },
     {
-      label: "Platform Fees (35%)",
+      label: "Platform Fees (5% from tutors)",
       value: formatCents(totalFees),
       icon: ArrowUpRight,
       color: "text-chart-4",
       bg: "bg-chart-4/10 border-chart-4/20",
     },
     {
-      label: "Tutor Payouts (65%)",
+      label: "Tutor Payouts (95%)",
       value: formatCents(tutorPayouts),
       icon: ArrowDownRight,
       color: "text-teal",
@@ -208,7 +208,7 @@ function TransactionRow({
               <span className="font-semibold text-teal">
                 {formatCents(tutorPayout)}
               </span>
-              <span className="text-muted-foreground"> (65%)</span>
+              <span className="text-muted-foreground"> (95%)</span>
             </div>
           </div>
         </div>
@@ -330,7 +330,7 @@ export default function TransactionsPage() {
                     {PLATFORM_FEE_PERCENT}%
                   </span>{" "}
                   of every paid session as a platform fee. The remaining{" "}
-                  <span className="font-semibold text-teal">65%</span> is paid
+                  <span className="font-semibold text-teal">95%</span> is paid
                   directly to the tutor. This fee is shown on every transaction
                   below.
                 </p>

@@ -681,9 +681,14 @@ actor {
       Runtime.trap("Must be logged in to claim admin");
     };
 
-    // Check if admin has already been assigned
+    // If caller is already admin, succeed immediately
+    if (AccessControl.isAdmin(accessControlState, caller)) {
+      return "You already have admin access";
+    };
+
+    // If admin has already been assigned to someone else, block
     if (accessControlState.adminAssigned) {
-      Runtime.trap("Admin has already been assigned");
+      Runtime.trap("Admin has already been assigned to another account. Please log in with the correct account.");
     };
 
     // Assign admin role to caller
